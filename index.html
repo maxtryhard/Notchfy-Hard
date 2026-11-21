@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notchfy</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="island" class="island" data-state="collapsed">
+      <!-- Pílula recolhida: no Mac com notch, o centro fica vazio sobre o recorte. -->
+      <div class="pill" aria-hidden="true">
+        <div class="pill-side pill-left">
+          <img class="pill-art" alt="" hidden />
+          <span class="pill-dot"></span>
+        </div>
+        <div class="pill-center"><span class="pill-title"></span></div>
+        <div class="pill-side pill-right">
+          <span class="eq" hidden><i></i><i></i><i></i></span>
+          <span class="pill-time"></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <nav class="tabs" role="tablist">
+          <button role="tab" data-tab="home" aria-selected="true" title="Início">
+            <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            <span>Início</span>
+          </button>
+          <button role="tab" data-tab="shelf" title="Prateleira">
+            <svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+            <span>Prateleira</span>
+            <em class="badge" data-badge="shelf" hidden></em>
+          </button>
+          <button role="tab" data-tab="shortcuts" title="Atalhos">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Atalhos</span>
+          </button>
+          <button role="tab" data-tab="ai" title="Uso de IA">
+            <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
+            <span>IA</span>
+          </button>
+        </nav>
+
+        <section class="view" data-view="home">
+          <div class="media card">
+            <div class="art-wrap"><img class="art" alt="" hidden /><div class="art-empty">♪</div></div>
+            <div class="media-info">
+              <div class="media-player"></div>
+              <div class="media-title">Nada tocando</div>
+              <div class="media-artist">Abra um player de música</div>
+              <div class="progress"><div class="progress-bar"></div></div>
+              <div class="progress-times"><span class="t-pos"></span><span class="t-dur"></span></div>
+              <div class="controls">
+                <button data-media="previous" title="Anterior"><svg viewBox="0 0 24 24"><path d="M19 20L9 12l10-8z" class="fill"/><path d="M5 19V5"/></svg></button>
+                <button data-media="play_pause" class="play" title="Tocar/pausar"><svg viewBox="0 0 24 24" class="i-play"><path d="M6 4l14 8-14 8z" class="fill"/></svg><svg viewBox="0 0 24 24" class="i-pause" hidden><path d="M7 4h4v16H7zM13 4h4v16h-4z" class="fill"/></svg></button>
+                <button data-media="next" title="Próxima"><svg viewBox="0 0 24 24"><path d="M5 4l10 8-10 8z" class="fill"/><path d="M19 5v14"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <div class="clock card">
+            <div class="clock-time"></div>
+            <div class="clock-date"></div>
+            <div class="calendar">
+              <div class="cal-head"><button data-cal="-1" title="Mês anterior">‹</button><span class="cal-title"></span><button data-cal="1" title="Próximo mês">›</button></div>
+              <div class="cal-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="view" data-view="shelf" hidden>
+          <div class="view-head">
+            <span class="view-title">Prateleira</span>
+            <span class="hint">Solte arquivos aqui · arraste para fora para usar</span>
+            <button class="ghost" data-action="shelf-clear">Limpar</button>
+          </div>
+          <div class="shelf-grid"></div>
+          <div class="empty shelf-empty">
+            <svg viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+            <p>Arraste arquivos até a ilha para guardá-los aqui.</p>
+          </div>
+        </section>
+
+        <section class="view" data-view="shortcuts" hidden>
+          <div class="view-head">
+            <span class="view-title">Atalhos e apps favoritos</span>
+            <button class="ghost" data-action="shortcuts-edit">Editar</button>
+          </div>
+          <div class="shortcut-grid"></div>
+          <form class="shortcut-form" hidden>
+            <input name="icon" maxlength="2" placeholder="✳" aria-label="Ícone" />
+            <input name="name" required placeholder="Nome" aria-label="Nome" />
+            <select name="kind" aria-label="Tipo">
+              <option value="app">App</option>
+              <option value="url">Link</option>
+              <option value="path">Pasta/arquivo</option>
+              <option value="command">Comando</option>
+            </select>
+            <input name="target" required placeholder="Safari, https://…, ~/Documentos" aria-label="Destino" />
+            <button type="submit">Adicionar</button>
+          </form>
+        </section>
+
+        <section class="view" data-view="ai" hidden>
+          <div class="view-head">
+            <span class="view-title">Tokens usados</span>
+            <span class="hint">Logs locais do Claude Code e do Codex CLI</span>
+            <button class="ghost" data-action="ai-refresh">Atualizar</button>
+          </div>
+          <div class="ai-grid"></div>
+        </section>
+      </div>
+      <div class="toast" role="status" hidden></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
