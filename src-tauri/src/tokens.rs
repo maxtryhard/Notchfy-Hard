@@ -12,7 +12,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use chrono::{DateTime, Local, NaiveDate};
+use jiff::{civil::Date, tz::TimeZone, Timestamp, ToSpan};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -70,7 +70,7 @@ struct Entry {
     /// Chave para descartar a mesma resposta registrada em dois arquivos
     /// (o Claude Code copia mensagens ao retomar uma sessão).
     key: Option<String>,
-    ts: DateTime<Local>,
+    ts: Timestamp,
     t: Totals,
 }
 
@@ -87,13 +87,12 @@ pub struct Cache {
 }
 
 pub fn report(cache: &Cache) -> Report {
-    let today = Local::now().date_naive();
     Report {
         providers: vec![
-            build("claude", "Claude Code", &claude_dirs(), parse_claude, cache, today),
-            build("codex", "Codex", &codex_dirs(), parse_codex, cache, today),
+            build("claude", "Claude Code", &claude_dirs(), parse_claude, cache),
+            build("codex", "Codex", &codex_dirs(), parse_codex, cache),
         ],
-        generated_at: Local::now().to_rfc3339(),
+        generated_at: Timestamp::now().to_string(),
     }
 }
 
@@ -123,7 +122,10 @@ fn codex_dirs() -> Vec<PathBuf> {
     let home = std::env::var_os("CODEX_HOME")
         .map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|h| h.join(".codex")));
-    existing(home.into_iter().flat_map(|h| [h.join("sessions"), h.join("archived_sessions")]))
+    existing(
+        home.into_iter()
+            .flat_map(|h| [h.join("sessions"), h.join("archived_sessions")]),
+    )
 }
 
 fn collect_jsonl(dir: &Path, cutoff: SystemTime, out: &mut Vec<PathBuf>, depth: u8) {
@@ -150,9 +152,10 @@ fn build(
     dirs: &[PathBuf],
     parse: fn(&str) -> Vec<Entry>,
     cache: &Cache,
-    today: NaiveDate,
 ) -> ProviderReport {
-    let start = today - chrono::Duration::days(WINDOW_DAYS - 1);
+    let tz = TimeZone::system();
+    let today = tz.to_datetime(Timestamp::now()).date();
+    let start = today - (WINDOW_DAYS - 1).days();
     // Um dia a mais de folga: um arquivo pode ter sido tocado por último logo
     // antes da meia-noite do primeiro dia da janela.
     let cutoff = SystemTime::now() - Duration::from_secs(86_400 * (WINDOW_DAYS as u64 + 1));
@@ -161,20 +164,34 @@ fn build(
         collect_jsonl(d, cutoff, &mut files, 0);
     }
 
-    let mut by_day: HashMap<NaiveDate, Totals> = HashMap::new();
+    let mut by_day: HashMap<Date, Totals> = HashMap::new();
     let mut seen = HashSet::new();
-    let mut last: Option<DateTime<Local>> = None;
+    let mut last: Option<Timestamp> = None;
     let mut guard = cache.files.lock().unwrap();
     guard.retain(|p, _| files.contains(p));
 
     for file in &files {
-        let Ok(meta) = fs::metadata(file) else { continue };
-        let (mtime, len) = (meta.modified().unwrap_or(SystemTime::UNIX_EPOCH), meta.len());
-        let fresh = guard.get(file).is_some_and(|c| c.mtime == mtime && c.len == len);
+        let Ok(meta) = fs::metadata(file) else {
+            continue;
+        };
+        let (mtime, len) = (
+            meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+            meta.len(),
+        );
+        let fresh = guard
+            .get(file)
+            .is_some_and(|c| c.mtime == mtime && c.len == len);
         if !fresh {
             let Ok(bytes) = fs::read(file) else { continue };
             let entries = parse(&String::from_utf8_lossy(&bytes));
-            guard.insert(file.clone(), FileCache { mtime, len, entries });
+            guard.insert(
+                file.clone(),
+                FileCache {
+                    mtime,
+                    len,
+                    entries,
+                },
+            );
         }
         for e in &guard[file].entries {
             if let Some(k) = &e.key {
@@ -182,7 +199,7 @@ fn build(
                     continue;
                 }
             }
-            let day = e.ts.date_naive();
+            let day = tz.to_datetime(e.ts).date();
             if day < start || day > today {
                 continue;
             }
@@ -196,10 +213,13 @@ fn build(
     let mut week = Totals::default();
     let days = (0..WINDOW_DAYS)
         .map(|i| {
-            let date = start + chrono::Duration::days(i);
+            let date = start + i.days();
             let t = by_day.get(&date).copied().unwrap_or_default();
             week.add(&t);
-            DayTotal { date: date.to_string(), total: t.total }
+            DayTotal {
+                date: date.to_string(),
+                total: t.total,
+            }
         })
         .collect();
 
@@ -207,18 +227,19 @@ fn build(
         id,
         name,
         found: !dirs.is_empty(),
-        dirs: dirs.iter().map(|d| d.to_string_lossy().into_owned()).collect(),
+        dirs: dirs
+            .iter()
+            .map(|d| d.to_string_lossy().into_owned())
+            .collect(),
         today: by_day.get(&today).copied().unwrap_or_default(),
         week,
         days,
-        last_activity: last.map(|t| t.to_rfc3339()),
+        last_activity: last.map(|t| t.to_string()),
     }
 }
 
-fn timestamp(v: &Value) -> Option<DateTime<Local>> {
-    DateTime::parse_from_rfc3339(v["timestamp"].as_str()?)
-        .ok()
-        .map(|t| t.with_timezone(&Local))
+fn timestamp(v: &Value) -> Option<Timestamp> {
+    v["timestamp"].as_str()?.parse().ok()
 }
 
 fn num(v: &Value) -> u64 {
@@ -248,11 +269,17 @@ fn parse_claude(content: &str) -> Vec<Entry> {
             if t.total == 0 {
                 return None;
             }
-            let key = v["message"]["id"].as_str().map(|id| match v["requestId"].as_str() {
-                Some(req) => format!("{id}:{req}"),
-                None => id.to_string(),
-            });
-            Some(Entry { key, ts: timestamp(&v)?, t })
+            let key = v["message"]["id"]
+                .as_str()
+                .map(|id| match v["requestId"].as_str() {
+                    Some(req) => format!("{id}:{req}"),
+                    None => id.to_string(),
+                });
+            Some(Entry {
+                key,
+                ts: timestamp(&v)?,
+                t,
+            })
         })
         .collect()
 }
@@ -271,8 +298,14 @@ fn parse_codex(content: &str) -> Vec<Entry> {
     let mut prev = Cum::default();
     let mut out = Vec::new();
     for line in content.lines().filter(|l| l.contains("token_count")) {
-        let Ok(v) = serde_json::from_str::<Value>(line) else { continue };
-        let payload = if v["payload"].is_object() { &v["payload"] } else { &v };
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let payload = if v["payload"].is_object() {
+            &v["payload"]
+        } else {
+            &v
+        };
         if payload["type"] != "token_count" {
             continue;
         }
@@ -287,7 +320,11 @@ fn parse_codex(content: &str) -> Vec<Entry> {
             total: num(&u["total_tokens"]),
         };
         // Total menor que o anterior: o contador recomeçou.
-        let base = if cur.total < prev.total { Cum::default() } else { prev };
+        let base = if cur.total < prev.total {
+            Cum::default()
+        } else {
+            prev
+        };
         prev = cur;
         let d_input = cur.input.saturating_sub(base.input);
         let d_cached = cur.cached.saturating_sub(base.cached);
@@ -315,14 +352,25 @@ mod tests {
     #[test]
     fn claude_lines_are_summed_and_keyed() {
         let log = concat!(
-            r#"{"type":"user","timestamp":"2026-11-20T10:00:00Z","message":{"role":"user"}}"#, "\n",
-            r#"{"type":"assistant","timestamp":"2026-11-20T10:00:05Z","requestId":"r1","message":{"id":"m1","usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":300,"cache_creation_input_tokens":40}}}"#, "\n",
+            r#"{"type":"user","timestamp":"2026-11-20T10:00:00Z","message":{"role":"user"}}"#,
+            "\n",
+            r#"{"type":"assistant","timestamp":"2026-11-20T10:00:05Z","requestId":"r1","message":{"id":"m1","usage":{"input_tokens":10,"output_tokens":20,"cache_read_input_tokens":300,"cache_creation_input_tokens":40}}}"#,
+            "\n",
             "isto não é json \"usage\"\n",
         );
         let entries = parse_claude(log);
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].key.as_deref(), Some("m1:r1"));
-        assert_eq!(entries[0].t, Totals { input: 10, output: 20, cache_read: 300, cache_write: 40, total: 370 });
+        assert_eq!(
+            entries[0].t,
+            Totals {
+                input: 10,
+                output: 20,
+                cache_read: 300,
+                cache_write: 40,
+                total: 370
+            }
+        );
     }
 
     #[test]
@@ -342,27 +390,57 @@ mod tests {
         .join("\n");
         let entries = parse_codex(&log);
         assert_eq!(entries.len(), 2);
-        assert_eq!(entries[0].t, Totals { input: 100, output: 10, cache_read: 0, cache_write: 0, total: 110 });
-        assert_eq!(entries[1].t, Totals { input: 70, output: 20, cache_read: 80, cache_write: 0, total: 170 });
+        assert_eq!(
+            entries[0].t,
+            Totals {
+                input: 100,
+                output: 10,
+                cache_read: 0,
+                cache_write: 0,
+                total: 110
+            }
+        );
+        assert_eq!(
+            entries[1].t,
+            Totals {
+                input: 70,
+                output: 20,
+                cache_read: 80,
+                cache_write: 0,
+                total: 170
+            }
+        );
     }
 
     #[test]
     fn duplicated_claude_messages_count_once() {
         let dir = std::env::temp_dir().join(format!("notchfy-tokens-{}", std::process::id()));
         fs::create_dir_all(dir.join("proj")).unwrap();
-        let now = Local::now().to_rfc3339();
+        let now = Timestamp::now().to_string();
         let line = format!(
             r#"{{"type":"assistant","timestamp":"{now}","requestId":"r","message":{{"id":"m","usage":{{"input_tokens":5,"output_tokens":5}}}}}}"#
         );
         fs::write(dir.join("proj/a.jsonl"), &line).unwrap();
         fs::write(dir.join("proj/b.jsonl"), &line).unwrap();
         let cache = Cache::default();
-        let r = build("claude", "Claude", &[dir.clone()], parse_claude, &cache, Local::now().date_naive());
+        let r = build(
+            "claude",
+            "Claude",
+            std::slice::from_ref(&dir),
+            parse_claude,
+            &cache,
+        );
         assert_eq!(r.today.total, 10);
         assert_eq!(r.week.total, 10);
         assert_eq!(r.days.len(), WINDOW_DAYS as usize);
         // Segunda leitura vem do cache e precisa dar o mesmo resultado.
-        let again = build("claude", "Claude", &[dir.clone()], parse_claude, &cache, Local::now().date_naive());
+        let again = build(
+            "claude",
+            "Claude",
+            std::slice::from_ref(&dir),
+            parse_claude,
+            &cache,
+        );
         assert_eq!(again.today.total, 10);
         let _ = fs::remove_dir_all(dir);
     }

@@ -2,8 +2,13 @@
 
 ## A aposta
 
-**"A torre de controle dos seus agentes de IA, no topo da tela. Grátis, aberto e
-também no Linux."**
+**"O app de notch completo (música, arquivos, atalhos) que também cuida dos seus
+agentes de IA. Mac, Windows e Linux de verdade, grátis, aberto, e sem tocar nas
+suas credenciais."**
+
+> Revisado depois da análise de concorrência (seção abaixo). A primeira versão
+> apostava em "aprovar o agente pela ilha" como diferencial, mas mais de dez apps
+> já fazem isso.
 
 O Notchfy (notchfy.ojohndev.com) já está na versão 1.2.3, roda em Mac e Windows,
 custa R$ 14,99 e tem uns 30 recursos: tela de bloqueio, espelho de câmera, brilho
@@ -20,7 +25,7 @@ O Mirante ganha onde ele não pode ou não quer ir:
 | Código | Fechado; o próprio site admite usar APIs privadas | **Aberto (MIT)**, auditável |
 | Preço | R$ 14,99, licença para 3 dispositivos | **Grátis** |
 | Sistemas | macOS 15+ e Windows | macOS **13+**, Windows e **Linux** |
-| Aprovar pedidos do agente | Não | **Sim, direto da ilha** (fase 2) |
+| Aprovar pedidos do agente | Não | Sim, direto da ilha (fase 2). Paridade, não diferencial |
 
 **Público:** quem programa com agentes de código (Claude Code, Codex, Gemini CLI,
 OpenCode), muitas vezes vários ao mesmo tempo, e perde tempo trocando de
@@ -28,6 +33,59 @@ terminal para ver se o agente terminou ou está parado esperando aprovação.
 
 **Métrica principal:** tempo entre o agente pedir sua permissão e você perceber.
 Meta: menos de 2 segundos, sem olhar para o terminal.
+
+## Concorrência (novembro de 2026)
+
+Há dois grupos, e nenhum app cobre os dois bem fora do Mac.
+
+**Apps de notch gerais** (música, prateleira, HUD, calendário): Notchfy, NotchNook,
+Alcove, Boring Notch (GPL, aberto), DynamicLake, Atoll. Quase todos só para Mac.
+No Linux há ilhas para o GNOME (NexNotch, isle) e para o Hyprland (dynisland,
+ActivSpot), cada uma presa a um ambiente.
+
+**Apps de agentes** (sessões, cotas, aprovar pedidos): Vibe Island, NotchPilot,
+NotchFlow, coucou, Agent Notch, Eclipse, Crest, Pushary e outros. Todos de Mac.
+A exceção é o **Agent HUD** (`jazzenchen/agent-hud-open`, Apache-2.0, também
+feito em Tauri, cerca de 690 estrelas):
+
+- cobre 27 agentes, com cotas, aprovação, estatísticas e app de iPhone e Watch;
+- é estável só no Mac. O Windows está em preview e o Linux "ainda não foi testado
+  num desktop real", sem menção a Wayland;
+- consulta as cotas usando o login que os agentes já têm na máquina;
+- não tem nada de utilitário: nem música, nem prateleira, nem atalhos;
+- o app de celular e o acesso remoto são fechados e pagos.
+
+**O espaço que sobra para o Mirante:**
+
+1. **Utilitário e agentes no mesmo app**, coisa que hoje só o Notchfy faz, e
+   ele é pago, fechado e sem Linux.
+2. **Linux e Windows como prioridade**, não como preview: Wayland nativo onde
+   der e testado em desktop real.
+3. **Nenhuma credencial**: limites e cotas vêm só da statusline e dos logs. O
+   Agent HUD e o Notchfy usam o login dos agentes.
+
+**Risco honesto:** o Agent HUD usa a mesma tecnologia e tem comunidade. Se ele
+estabilizar o Windows e o Linux, o diferencial do Mirante encolhe para os itens
+1 e 3. A alternativa é contribuir com ele em vez de competir. Essa decisão é sua
+(ver "Decisões").
+
+## O que dá para trazer dos outros
+
+Escolhido pelo custo baixo e por servir ao público-alvo:
+
+| Ideia | De onde | Fase |
+| --- | --- | --- |
+| Abrir por clique em vez de hover (o hover irrita parte dos usuários) | Reclamações em reviews do NotchBox e do Alcove | 0 |
+| Ações ao soltar arquivo: copiar caminho, compactar | NotchNook, Boring Notch | 1 |
+| Aprovar, negar ou "sempre permitir", com *fail-open*: se o app estiver fechado, o pedido volta ao terminal | Agent Notch, coucou, notch-for-claude-code | 1 (paridade) |
+| Saltar para o terminal da sessão | Agent HUD, AgentTray | 1 |
+| Ritmo de uso (*burn rate*) e previsão de quando o limite estoura | Agent HUD | 1 |
+| Bateria e carregamento como atividade na pílula | Alcove, Notchfy | 2 |
+| Eventos do calendário | Boring Notch, Notchfy | 2 |
+| Aprovar pelo celular (Telegram/ntfy), opcional e desligado por padrão | notch-for-claude-code, coucou | 3 |
+
+Fica de fora: substituir o HUD de volume e brilho (depende de API privada no
+Mac), AirDrop, tela de bloqueio e espelho de câmera.
 
 ## Nome
 
@@ -72,7 +130,8 @@ tiverem sido abertos em máquina real.
   - Na ilha: anéis de uso e previsão, por exemplo "no ritmo atual, o limite de
     5h estoura às 16h40".
 - **Sessões ao vivo**: os hooks do Claude Code (`SessionStart`, `Notification`,
-  `Stop`) e o `notify` do Codex mandam eventos para um socket local do app.
+  `Stop`, `PermissionRequest`) e o `notify` do Codex mandam eventos para um
+  socket local do app.
   Para cada sessão, mostra o projeto, o agente, o estado (trabalhando, esperando
   você ou terminou) e há quanto tempo está nesse estado.
 - **A pílula reage**: fica âmbar quando um agente pede permissão e verde quando
@@ -135,6 +194,9 @@ e nada disso serve ao público-alvo.
      para usar o Azure Trusted Signing, que é bem mais barato.
    - Dá para lançar sem assinatura e assinar depois.
 3. **Nome final**, depois da verificação de marca e domínio.
+4. **Competir ou contribuir com o Agent HUD.** Recomendo competir só no que ele
+   não faz (utilitário, Linux e Windows sólidos, nenhuma credencial) e não tentar
+   alcançar os 27 agentes dele. Começar por Claude Code e Codex basta.
 
 ## Riscos
 
@@ -144,9 +206,9 @@ e nada disso serve ao público-alvo.
   mostrar "indisponível" em vez de quebrar.
 - **Hook travado.** Um hook `PreToolUse` que trava deixa o agente travado. Por
   isso o timeout com devolução ao terminal é obrigatório, não opcional.
-- **O concorrente reagir.** O Notchfy pode lançar versão para Linux ou aprovação
-  pela ilha. O diferencial que ele não consegue copiar é ser aberto e não ler
-  credenciais.
+- **Os concorrentes reagirem.** O Notchfy pode lançar Linux; o Agent HUD pode
+  estabilizar Windows e Linux. O que nenhum dos dois copia sem mudar a
+  arquitetura é não usar credenciais.
 - **Linux concorrido.** Já existem projetos de ilha para Linux, então Linux
   sozinho não sustenta a proposta.
 

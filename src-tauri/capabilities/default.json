@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Permissões da janela da ilha",
   "windows": ["island"],
-  "permissions": ["core:default", "opener:default", "drag:default"]
+  "permissions": ["core:default", "drag:default"]
 }

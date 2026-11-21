@@ -87,15 +87,17 @@ fn get_layout(state: State<'_, AppState>) -> Layout {
 }
 
 #[tauri::command]
-fn set_expanded(window: WebviewWindow, state: State<'_, AppState>, expanded: bool) -> Result<(), String> {
+fn set_expanded(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    expanded: bool,
+) -> Result<(), String> {
     let l = state.layout;
     let (w, h) = if expanded {
         (l.expanded_width, l.expanded_height)
     } else {
         (l.collapsed_width, l.collapsed_height)
     };
-    #[cfg(debug_assertions)]
-    eprintln!("notchfy: set_expanded({expanded}) -> {w}x{h}");
     place(&window, w, h).map_err(|e| e.to_string())
 }
 
@@ -126,7 +128,10 @@ fn get_data(state: State<'_, AppState>) -> store::Data {
 }
 
 #[tauri::command]
-fn save_shortcuts(state: State<'_, AppState>, shortcuts: Vec<store::Shortcut>) -> Result<store::Data, String> {
+fn save_shortcuts(
+    state: State<'_, AppState>,
+    shortcuts: Vec<store::Shortcut>,
+) -> Result<store::Data, String> {
     let mut s = state.store.lock().unwrap();
     s.data.shortcuts = shortcuts;
     s.save()?;
@@ -225,7 +230,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "quit" => app.exit(0),
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
-                    let _ = if w.is_visible().unwrap_or(false) { w.hide() } else { w.show() };
+                    let _ = if w.is_visible().unwrap_or(false) {
+                        w.hide()
+                    } else {
+                        w.show()
+                    };
                 }
             }
             _ => {}

@@ -40,6 +40,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust-targets }}
+          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -47,12 +48,18 @@ jobs:
 
       - run: npm ci
 
-      # O backend embute o frontend na compilação, então a pasta dist precisa existir.
-      - run: npm run build
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
 
-      - name: Testes do backend
-        working-directory: src-tauri
-        run: cargo test
+      # Mesmas checagens do AGENTS.md: tipos, formatação, clippy sem avisos e testes.
+      - name: Verificação
+        run: npm run check
+
+      - name: Vulnerabilidades
+        run: |
+          npm audit --audit-level=high
+          cd src-tauri && cargo audit
 
       - name: Build
         run: npx tauri build ${{ matrix.args }}

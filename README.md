@@ -76,10 +76,22 @@ Os dados ficam em `notchfy.json`, na pasta de configuração do app
 (`~/Library/Application Support/app.notchfy.hard`, `%APPDATA%\app.notchfy.hard`
 ou `~/.config/app.notchfy.hard`).
 
-## Testes
+## Contribuindo
+
+As regras de código (para pessoas e IAs) estão em [AGENTS.md](AGENTS.md).
 
 ```bash
-npm run build                  # checa tipos e gera dist/ (o backend embute)
-cd src-tauri && cargo test     # leitura de logs, prateleira, persistência
-cargo test -- --ignored --nocapture print_local_report   # seu uso real de tokens
+npm run check     # tipos, build, formatação, clippy sem avisos e testes
+cd src-tauri && cargo test -- --ignored --nocapture print_local_report   # seu uso real de tokens
+```
+
+Para checar o código de outro sistema sem estar nele:
+
+```bash
+rustup target add x86_64-pc-windows-msvc aarch64-apple-darwin
+cd src-tauri
+cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings
+# macOS precisa do clang: um trecho em Objective-C é compilado
+CC_aarch64_apple_darwin=clang CFLAGS_aarch64_apple_darwin="--target=arm64-apple-macos11" \
+  cargo clippy --target aarch64-apple-darwin --all-targets -- -D warnings
 ```

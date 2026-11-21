@@ -5,9 +5,6 @@
 //! - macOS: AppleScript no Spotify e no Música. O MediaRemote, que cobriria
 //!   qualquer player, foi fechado para apps de terceiros no macOS 15.4.
 
-use std::sync::Mutex;
-
-use base64::{engine::general_purpose::STANDARD, Engine};
 use serde::Serialize;
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -38,9 +35,10 @@ pub fn control(action: &str) -> Result<(), String> {
 
 /// A capa só muda quando a faixa muda; guardamos a última para não reler o
 /// arquivo (ou o stream do Windows) a cada atualização.
-static ART_CACHE: Mutex<Option<(String, Option<String>)>> = Mutex::new(None);
+#[cfg(not(target_os = "macos"))]
+static ART_CACHE: std::sync::Mutex<Option<(String, Option<String>)>> = std::sync::Mutex::new(None);
 
-#[allow(dead_code)]
+#[cfg(not(target_os = "macos"))]
 fn cached_art(key: &str, load: impl FnOnce() -> Option<String>) -> Option<String> {
     let mut cache = ART_CACHE.lock().unwrap();
     if let Some((k, v)) = cache.as_ref() {
@@ -53,8 +51,9 @@ fn cached_art(key: &str, load: impl FnOnce() -> Option<String>) -> Option<String
     value
 }
 
-#[allow(dead_code)]
+#[cfg(not(target_os = "macos"))]
 fn data_url(mime: &str, bytes: &[u8]) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine};
     format!("data:{mime};base64,{}", STANDARD.encode(bytes))
 }
 
@@ -71,15 +70,17 @@ mod imp {
         }
         let path = url.strip_prefix("file://")?;
         let path = percent_decode(path);
-        let meta = std::fs::metadata(&path).ok()?;
-        if meta.len() > MAX_ART_BYTES {
+        // O caminho vem de qualquer player no D-Bus: só aceitamos imagens,
+        // para um player malicioso não fazer o app ler outros arquivos.
+        let mime = match path.rsplit('.').next()?.to_ascii_lowercase().as_str() {
+            "png" => "image/png",
+            "webp" => "image/webp",
+            "jpg" | "jpeg" => "image/jpeg",
+            _ => return None,
+        };
+        if std::fs::metadata(&path).ok()?.len() > MAX_ART_BYTES {
             return None;
         }
-        let mime = match path.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
-            Some("png") => "image/png",
-            Some("webp") => "image/webp",
-            _ => "image/jpeg",
-        };
         Some(data_url(mime, &std::fs::read(&path).ok()?))
     }
 
@@ -102,9 +103,15 @@ mod imp {
     }
 
     pub fn state() -> MediaState {
-        let Ok(finder) = PlayerFinder::new() else { return MediaState::default() };
-        let Ok(player) = finder.find_active() else { return MediaState::default() };
-        let Ok(meta) = player.get_metadata() else { return MediaState::default() };
+        let Ok(finder) = PlayerFinder::new() else {
+            return MediaState::default();
+        };
+        let Ok(player) = finder.find_active() else {
+            return MediaState::default();
+        };
+        let Ok(meta) = player.get_metadata() else {
+            return MediaState::default();
+        };
         let title = meta.title().unwrap_or_default().to_string();
         let artist = meta.artists().map(|a| a.join(", ")).unwrap_or_default();
         let art = meta
@@ -140,7 +147,10 @@ mod imp {
     mod tests {
         #[test]
         fn decodes_file_urls() {
-            assert_eq!(super::percent_decode("/home/a%20b/capa%C3%A7.jpg"), "/home/a b/capaç.jpg");
+            assert_eq!(
+                super::percent_decode("/home/a%20b/capa%C3%A7.jpg"),
+                "/home/a b/capaç.jpg"
+            );
         }
     }
 }
@@ -165,7 +175,9 @@ mod imp {
 
     fn thumbnail(s: &Session) -> windows::core::Result<Option<String>> {
         let props = s.TryGetMediaPropertiesAsync()?.join()?;
-        let Ok(reference) = props.Thumbnail() else { return Ok(None) };
+        let Ok(reference) = props.Thumbnail() else {
+            return Ok(None);
+        };
         let stream = reference.OpenReadAsync()?.join()?;
         let size = stream.Size()?;
         if size == 0 || size > MAX_ART_BYTES {
@@ -175,8 +187,15 @@ mod imp {
         reader.LoadAsync(size as u32)?.join()?;
         let mut buf = vec![0u8; size as usize];
         reader.ReadBytes(&mut buf)?;
-        let mime = stream.ContentType().map(|c| c.to_string()).unwrap_or_default();
-        let mime = if mime.starts_with("image/") { mime } else { "image/png".into() };
+        let mime = stream
+            .ContentType()
+            .map(|c| c.to_string())
+            .unwrap_or_default();
+        let mime = if mime.starts_with("image/") {
+            mime
+        } else {
+            "image/png".into()
+        };
         Ok(Some(data_url(&mime, &buf)))
     }
 
@@ -196,7 +215,11 @@ mod imp {
             player: s.SourceAppUserModelId()?.to_string(),
             art: cached_art(&key, || thumbnail(&s).ok().flatten()),
             position: timeline.as_ref().and_then(|t| t.Position().ok()).map(ticks),
-            duration: timeline.as_ref().and_then(|t| t.EndTime().ok()).map(ticks).filter(|d| *d > 0.0),
+            duration: timeline
+                .as_ref()
+                .and_then(|t| t.EndTime().ok())
+                .map(ticks)
+                .filter(|d| *d > 0.0),
             title,
             artist,
         })
@@ -213,7 +236,9 @@ mod imp {
             "next" => s.TrySkipNextAsync(),
             _ => s.TrySkipPreviousAsync(),
         };
-        op.and_then(|o| o.join()).map(|_| ()).map_err(|e| e.to_string())
+        op.and_then(|o| o.join())
+            .map(|_| ())
+            .map_err(|e| e.to_string())
     }
 }
 
@@ -238,7 +263,10 @@ mod imp {
     }
 
     fn osascript(script: &str) -> Option<String> {
-        let out = Command::new("osascript").args(["-e", script]).output().ok()?;
+        let out = Command::new("osascript")
+            .args(["-e", script])
+            .output()
+            .ok()?;
         out.status
             .success()
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
@@ -250,10 +278,15 @@ mod imp {
     }
 
     pub fn state() -> MediaState {
-        let Some(app) = active_player() else { return MediaState::default() };
+        let Some(app) = active_player() else {
+            return MediaState::default();
+        };
         // A duração vem em milissegundos no Spotify e em segundos no Música.
         let (art, duration) = if app == "Spotify" {
-            ("artwork url of current track", "(duration of current track) / 1000")
+            (
+                "artwork url of current track",
+                "(duration of current track) / 1000",
+            )
         } else {
             ("\"\"", "duration of current track")
         };
@@ -277,7 +310,11 @@ end tell"#
             title: f[1].into(),
             artist: f[2].into(),
             album: f[3].into(),
-            player: if app == "Music" { "Música".into() } else { app.into() },
+            player: if app == "Music" {
+                "Música".into()
+            } else {
+                app.into()
+            },
             art: Some(f[4].to_string()).filter(|a| a.starts_with("https://")),
             duration: number(f[5]),
             position: number(f[6]),

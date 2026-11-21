@@ -18,7 +18,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-drag = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-chrono = "0.4"
+jiff = "1"
 base64 = "0.22"
 dirs = "6"
 

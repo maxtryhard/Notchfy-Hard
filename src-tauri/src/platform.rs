@@ -36,7 +36,10 @@ pub fn detect_notch() -> Option<Notch> {
     let left = screen.auxiliaryTopLeftArea();
     let right = screen.auxiliaryTopRightArea();
     let width = frame.size.width - left.size.width - right.size.width;
-    (width > 0.0).then_some(Notch { width, height: insets.top })
+    (width > 0.0).then_some(Notch {
+        width,
+        height: insets.top,
+    })
 }
 
 #[cfg(not(target_os = "macos"))]

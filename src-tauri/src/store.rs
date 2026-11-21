@@ -54,9 +54,15 @@ impl Store {
         let data = match fs::read_to_string(&path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
                 eprintln!("notchfy: {} inválido ({e}); usando padrões", path.display());
-                Data { shortcuts: default_shortcuts(), shelf: Vec::new() }
+                Data {
+                    shortcuts: default_shortcuts(),
+                    shelf: Vec::new(),
+                }
             }),
-            Err(_) => Data { shortcuts: default_shortcuts(), shelf: Vec::new() },
+            Err(_) => Data {
+                shortcuts: default_shortcuts(),
+                shelf: Vec::new(),
+            },
         };
         Self { path, data }
     }
@@ -82,7 +88,7 @@ impl Store {
     }
 
     pub fn shelf_add(&mut self, paths: Vec<String>) {
-        let now = chrono::Local::now().timestamp();
+        let now = jiff::Timestamp::now().as_second();
         for path in paths {
             if self.data.shelf.iter().any(|i| i.path == path) {
                 continue;
@@ -92,14 +98,29 @@ impl Store {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path.clone());
-            self.data.shelf.insert(0, ShelfItem { is_dir: p.is_dir(), path, name, added_at: now, exists: true });
+            self.data.shelf.insert(
+                0,
+                ShelfItem {
+                    is_dir: p.is_dir(),
+                    path,
+                    name,
+                    added_at: now,
+                    exists: true,
+                },
+            );
         }
         self.data.shelf.truncate(SHELF_LIMIT);
     }
 }
 
 fn shortcut(id: &str, name: &str, icon: &str, kind: &str, target: &str) -> Shortcut {
-    Shortcut { id: id.into(), name: name.into(), icon: icon.into(), kind: kind.into(), target: target.into() }
+    Shortcut {
+        id: id.into(),
+        name: name.into(),
+        icon: icon.into(),
+        kind: kind.into(),
+        target: target.into(),
+    }
 }
 
 fn default_shortcuts() -> Vec<Shortcut> {
@@ -117,7 +138,13 @@ fn default_shortcuts() -> Vec<Shortcut> {
     #[cfg(target_os = "linux")]
     list.extend([
         shortcut("files", "Arquivos", "📁", "path", "~"),
-        shortcut("terminal", "Terminal", "⌘", "command", "x-terminal-emulator"),
+        shortcut(
+            "terminal",
+            "Terminal",
+            "⌘",
+            "command",
+            "x-terminal-emulator",
+        ),
     ]);
     list.extend([
         shortcut("downloads", "Downloads", "⬇", "path", "~/Downloads"),
@@ -185,7 +212,11 @@ fn launch_app(target: &str) -> Result<(), String> {
         // Um id de .desktop (ex.: "firefox") abre pelo gtk-launch, que usa o
         // mesmo lançador do menu de aplicativos. Caso contrário, vira comando.
         let id = target.trim_end_matches(".desktop");
-        let ok = Command::new("gtk-launch").arg(id).status().map(|s| s.success()).unwrap_or(false);
+        let ok = Command::new("gtk-launch")
+            .arg(id)
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
         if ok {
             Ok(())
         } else {
@@ -200,8 +231,14 @@ pub fn launch(app: &AppHandle, s: &Shortcut) -> Result<(), String> {
         return Err("Atalho sem destino".into());
     }
     match s.kind.as_str() {
-        "url" => app.opener().open_url(target, None::<&str>).map_err(|e| e.to_string()),
-        "path" => app.opener().open_path(expand_home(target), None::<&str>).map_err(|e| e.to_string()),
+        "url" => app
+            .opener()
+            .open_url(target, None::<&str>)
+            .map_err(|e| e.to_string()),
+        "path" => app
+            .opener()
+            .open_path(expand_home(target), None::<&str>)
+            .map_err(|e| e.to_string()),
         "app" => launch_app(target),
         "command" => spawn_detached(shell(target)),
         other => Err(format!("Tipo de atalho desconhecido: {other}")),
@@ -215,7 +252,10 @@ mod tests {
     #[test]
     fn shelf_deduplicates_and_puts_newest_first() {
         let dir = std::env::temp_dir().join("notchfy-test-store");
-        let mut store = Store { path: dir.join("x.json"), data: Data::default() };
+        let mut store = Store {
+            path: dir.join("x.json"),
+            data: Data::default(),
+        };
         store.shelf_add(vec!["/a/um.txt".into(), "/a/dois.txt".into()]);
         store.shelf_add(vec!["/a/um.txt".into(), "/b".into()]);
         let names: Vec<_> = store.data.shelf.iter().map(|i| i.name.as_str()).collect();
@@ -227,7 +267,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("notchfy-test-{}", std::process::id()));
         let path = dir.join("notchfy.json");
         let mut store = Store::load(path.clone());
-        assert!(!store.data.shortcuts.is_empty(), "primeira execução cria atalhos padrão");
+        assert!(
+            !store.data.shortcuts.is_empty(),
+            "primeira execução cria atalhos padrão"
+        );
         store.data.shortcuts = vec![shortcut("x", "X", "X", "url", "https://example.com")];
         store.save().unwrap();
         let again = Store::load(path);
@@ -239,7 +282,10 @@ mod tests {
     fn home_expansion() {
         let home = dirs::home_dir().unwrap();
         assert_eq!(expand_home("~"), home.to_string_lossy());
-        assert_eq!(expand_home("~/Downloads"), home.join("Downloads").to_string_lossy());
+        assert_eq!(
+            expand_home("~/Downloads"),
+            home.join("Downloads").to_string_lossy()
+        );
         assert_eq!(expand_home("/tmp"), "/tmp");
     }
 }
