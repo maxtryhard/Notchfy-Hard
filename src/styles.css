@@ -1,4 +1,6 @@
 :root {
+  --peek-w: 380px;
+  --peek-top: 12px;
   --cw: 220px;
   --ch: 32px;
   --ew: 680px;
@@ -105,6 +107,12 @@ svg .fill {
   width: var(--ew);
   height: var(--eh);
   border-radius: 0 0 26px 26px;
+}
+
+.island[data-state="peek"] {
+  width: var(--peek-w);
+  height: calc(var(--peek-top) + 74px);
+  border-radius: 0 0 22px 22px;
 }
 
 .island[data-state="collapsed"] {
@@ -260,6 +268,89 @@ svg .fill {
   50% {
     transform: scaleY(1);
   }
+}
+
+/* ---------- Notificação ---------- */
+
+/* Tamanho fixo e preso ao topo, como o painel: a ilha só o revela. */
+.peek {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--peek-w);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: var(--peek-top) 18px 12px 14px;
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px);
+  pointer-events: none;
+  transition:
+    opacity 0.1s var(--ease),
+    transform 0.12s var(--ease);
+}
+
+.island[data-state="peek"] .pill {
+  opacity: 0;
+  transition: opacity 0.08s var(--ease);
+}
+
+.island[data-state="peek"] .peek {
+  opacity: 1;
+  transform: translateX(-50%);
+  transition:
+    opacity 0.22s var(--ease) 0.08s,
+    transform 0.42s var(--spring);
+}
+
+/* Inicial do app num círculo: reconhecível sem precisar do ícone dele. */
+.peek-badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--card-hover);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.peek-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.peek-app {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.peek-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Até duas linhas, como no iPhone; o resto vira reticências. */
+.peek-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.peek-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.peek-body {
+  color: #c9ccd2;
+  font-size: 12px;
 }
 
 /* ---------- Painel aberto ---------- */
@@ -1035,6 +1126,7 @@ svg .fill {
 @media (prefers-reduced-motion: reduce) {
   .island,
   .panel,
+  .peek,
   .pill,
   .tab-highlight,
   .mascot-eyes,

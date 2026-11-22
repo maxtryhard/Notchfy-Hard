@@ -1,5 +1,6 @@
 mod hover;
 mod media;
+mod notify;
 mod platform;
 mod store;
 mod tokens;
@@ -8,9 +9,9 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
 
@@ -62,6 +63,33 @@ struct AppState {
     drag_icon: Option<String>,
     placement: Mutex<Option<Placement>>,
     hover_area: hover::Area,
+    notices: Mutex<Option<notify::Listener>>,
+}
+
+/// Evento com o motivo de a escuta não ter começado, para a ilha mostrar.
+const NOTICE_ERROR_EVENT: &str = "island-notification-error";
+
+/// Liga ou desliga a escuta de notificações e salva a escolha. Se o sistema
+/// recusar, a opção fica desligada e o erro explica o motivo.
+fn set_notifications(app: &AppHandle, on: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let started = if on {
+        let mut listener = state.notices.lock().unwrap();
+        if listener.is_none() {
+            let handle = app.clone();
+            // emit só falha com o app fechando; não há a quem avisar.
+            *listener = Some(notify::start(move |notice| {
+                let _ = handle.emit(notify::NOTICE_EVENT, notice);
+            })?);
+        }
+        true
+    } else {
+        *state.notices.lock().unwrap() = None;
+        false
+    };
+    let mut store = state.store.lock().unwrap();
+    store.data.notifications = started;
+    store.save()
 }
 
 /// Canto superior esquerdo da janela, em pixels lógicos, e a escala do monitor.
@@ -145,6 +173,19 @@ fn set_expanded(state: State<'_, AppState>, expanded: bool) {
     if let Some(p) = *state.placement.lock().unwrap() {
         *state.hover_area.lock().unwrap() = Some(zone(p, state.layout, expanded));
     }
+}
+
+/// Chamado pela interface ao abrir: retoma a escuta se a opção estava ligada.
+#[tauri::command]
+fn notifications_init(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let enabled = state.store.lock().unwrap().data.notifications;
+    if !enabled {
+        return Ok(());
+    }
+    set_notifications(&app, true).inspect_err(|_| {
+        // Falhou ao retomar: desliga para não tentar de novo a cada abertura.
+        let _ = set_notifications(&app, false);
+    })
 }
 
 #[tauri::command]
@@ -267,13 +308,36 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mostrar/ocultar Notchfy", true, None::<&str>)?;
+    let enabled = app
+        .state::<AppState>()
+        .store
+        .lock()
+        .unwrap()
+        .data
+        .notifications;
+    let notices = CheckMenuItem::with_id(
+        app,
+        "notifications",
+        "Mostrar notificações na ilha",
+        true,
+        enabled,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &notices, &quit])?;
     let mut tray = TrayIconBuilder::with_id("notchfy")
         .tooltip("Notchfy")
         .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
+            "notifications" => {
+                // O próprio menu já marcou ou desmarcou o item ao ser clicado.
+                let on = notices.is_checked().unwrap_or(false);
+                if let Err(reason) = set_notifications(app, on) {
+                    let _ = notices.set_checked(false);
+                    let _ = app.emit(NOTICE_ERROR_EVENT, reason);
+                }
+            }
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
                     let state = app.state::<AppState>();
@@ -318,6 +382,7 @@ pub fn run() {
                 drag_icon: write_drag_icon(&handle),
                 placement: Mutex::new(None),
                 hover_area: hover::Area::default(),
+                notices: Mutex::new(None),
             });
 
             if let Err(e) = build_tray(&handle) {
@@ -334,6 +399,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_layout,
             set_expanded,
+            notifications_init,
             media_state,
             media_control,
             ai_usage,

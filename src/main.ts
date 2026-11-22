@@ -5,6 +5,7 @@ import { initAi, refreshAi } from "./ai";
 import { initClock, resetCalendar } from "./clock";
 import { initMascot } from "./mascot";
 import { initMedia, setMediaFast } from "./media";
+import { initNotices } from "./notices";
 import { initShelf, isDraggingOut, renderShelf } from "./shelf";
 import { initShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
 import { $, $$, errorText, toast } from "./util";
@@ -27,6 +28,8 @@ function applyLayout(l: Layout) {
   s.setProperty("--ew", `${l.expandedWidth}px`);
   s.setProperty("--eh", `${l.expandedHeight}px`);
   s.setProperty("--notch", `${l.notchWidth}px`);
+  // Com notch, o texto da notificação começa abaixo do recorte.
+  s.setProperty("--peek-top", `${l.hasNotch ? l.collapsedHeight + 4 : 12}px`);
   island.classList.toggle("notch", l.hasNotch);
   document.documentElement.dataset.platform = l.platform;
 }
@@ -135,6 +138,7 @@ async function main() {
   initClock();
   initMedia();
   await initMascot();
+  await initNotices();
   initAi();
   initShortcuts(renderData, () => scheduleCollapse(150));
   await initShelf(renderData);
