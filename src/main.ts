@@ -1,10 +1,11 @@
+import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, type Data, type Layout } from "./api";
 import { initAi, refreshAi } from "./ai";
 import { initClock, resetCalendar } from "./clock";
 import { initMedia, setMediaFast } from "./media";
 import { initShelf, isDraggingOut, renderShelf } from "./shelf";
-import { initShortcuts, isEditingShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
+import { initShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
 import { $, $$, errorText, toast } from "./util";
 
 type Tab = "home" | "shelf" | "shortcuts" | "ai";
@@ -15,6 +16,8 @@ const COLLAPSE_MS = 280;
 let expanded = false;
 let collapseTimer: number | undefined;
 let dropHover = false;
+// Vem do Rust (src-tauri/src/hover.rs), que já aplica a espera de intenção.
+let hovering = false;
 let activeTab: Tab = "home";
 let aiTimer: number | undefined;
 
@@ -54,7 +57,7 @@ async function expand(tab?: Tab) {
 /** Mantém aberta enquanto o usuário digita, edita ou arrasta. */
 function holdOpen() {
   const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLSelectElement;
-  return dropHover || isDraggingOut() || (typing && island.matches(":hover"));
+  return dropHover || isDraggingOut() || (typing && hovering);
 }
 
 function scheduleCollapse(delay = 450) {
@@ -113,9 +116,14 @@ async function main() {
   renderData(await api.data());
 
   $$<HTMLButtonElement>("[data-tab]").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab as Tab)));
-  island.addEventListener("mouseenter", () => expand());
-  island.addEventListener("mouseleave", () => scheduleCollapse());
-  window.addEventListener("blur", () => !isEditingShortcuts() && scheduleCollapse(200));
+  // Clique abre na hora, sem a espera do hover; também reabre depois de um Esc
+  // com o mouse parado em cima.
+  $(".pill").addEventListener("click", () => expand());
+  await listen<boolean>("island-hover", (event) => {
+    hovering = event.payload;
+    if (hovering) expand();
+    else scheduleCollapse();
+  });
   document.addEventListener("keydown", (e) => e.key === "Escape" && collapse());
   await listenForDrops();
 }

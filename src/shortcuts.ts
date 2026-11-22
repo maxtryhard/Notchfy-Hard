@@ -6,8 +6,6 @@ let shortcuts: Shortcut[] = [];
 let onChange: (d: Data) => void = () => {};
 let afterLaunch: () => void = () => {};
 
-export const isEditingShortcuts = () => editing;
-
 function render() {
   const grid = $(".shortcut-grid");
   grid.classList.toggle("editing", editing);

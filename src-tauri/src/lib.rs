@@ -1,3 +1,4 @@
+mod hover;
 mod media;
 mod platform;
 mod store;
@@ -59,10 +60,12 @@ struct AppState {
     store: Mutex<store::Store>,
     tokens: tokens::Cache,
     drag_icon: Option<String>,
+    hover_area: hover::Area,
 }
 
-/// Centraliza a janela no topo do monitor principal com o tamanho pedido.
-fn place(window: &WebviewWindow, width: f64, height: f64) -> tauri::Result<()> {
+/// Centraliza a janela no topo do monitor principal com o tamanho pedido e
+/// avisa o detector de hover da nova área.
+fn place(window: &WebviewWindow, area: &hover::Area, width: f64, height: f64) -> tauri::Result<()> {
     let monitor = match window.primary_monitor()? {
         Some(m) => m,
         None => match window.current_monitor()? {
@@ -73,11 +76,15 @@ fn place(window: &WebviewWindow, width: f64, height: f64) -> tauri::Result<()> {
     let scale = monitor.scale_factor();
     let origin = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
+    let x = origin.x + ((size.width - width) / 2.0).round();
     window.set_size(LogicalSize::new(width, height))?;
-    window.set_position(LogicalPosition::new(
-        origin.x + ((size.width - width) / 2.0).round(),
-        origin.y,
-    ))?;
+    window.set_position(LogicalPosition::new(x, origin.y))?;
+    *area.lock().unwrap() = Some(hover::Rect {
+        left: x * scale,
+        top: origin.y * scale,
+        right: (x + width) * scale,
+        bottom: (origin.y + height) * scale,
+    });
     Ok(())
 }
 
@@ -98,7 +105,7 @@ fn set_expanded(
     } else {
         (l.collapsed_width, l.collapsed_height)
     };
-    place(&window, w, h).map_err(|e| e.to_string())
+    place(&window, &state.hover_area, w, h).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -230,10 +237,16 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "quit" => app.exit(0),
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
+                    let state = app.state::<AppState>();
+                    // O menu da bandeja não tem onde mostrar erro; na pior das
+                    // hipóteses a ilha não alterna e o usuário tenta de novo.
                     let _ = if w.is_visible().unwrap_or(false) {
+                        *state.hover_area.lock().unwrap() = None;
                         w.hide()
                     } else {
-                        w.show()
+                        let l = state.layout;
+                        place(&w, &state.hover_area, l.collapsed_width, l.collapsed_height)
+                            .and_then(|_| w.show())
                     };
                 }
             }
@@ -266,6 +279,7 @@ pub fn run() {
                 store: Mutex::new(store::Store::load(config_dir.join("notchfy.json"))),
                 tokens: tokens::Cache::default(),
                 drag_icon: write_drag_icon(&handle),
+                hover_area: hover::Area::default(),
             });
 
             if let Err(e) = build_tray(&handle) {
@@ -274,7 +288,14 @@ pub fn run() {
 
             let window = create_island(&handle, layout)?;
             platform::configure_window(&window);
-            place(&window, layout.collapsed_width, layout.collapsed_height)?;
+            let area = app.state::<AppState>().hover_area.clone();
+            place(
+                &window,
+                &area,
+                layout.collapsed_width,
+                layout.collapsed_height,
+            )?;
+            hover::watch(window.clone(), area);
             window.show()?;
             Ok(())
         })
