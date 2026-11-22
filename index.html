@@ -13,18 +13,43 @@
         <div class="pill-side pill-left">
           <!-- Mascote: os olhos seguem o cursor (src/mascot.ts). -->
           <svg class="mascot" viewBox="0 0 24 24">
-            <circle class="mascot-face" cx="12" cy="12" r="11" />
-            <circle class="mascot-cheek" cx="5.6" cy="15" r="1.8" />
-            <circle class="mascot-cheek" cx="18.4" cy="15" r="1.8" />
-            <g class="mascot-eye">
-              <ellipse class="mascot-white" cx="8.4" cy="10.5" rx="2.9" ry="3.4" />
-              <circle class="mascot-pupil" cx="8.4" cy="10.8" r="1.7" />
+            <defs>
+              <!-- Corpo iluminado do alto à esquerda: núcleo quase branco, como luz acesa. -->
+              <radialGradient id="mascot-body" cx="0.36" cy="0.3" r="0.78">
+                <stop offset="0" stop-color="#f2fff9" />
+                <stop offset="0.2" stop-color="#9dffd6" />
+                <stop offset="0.52" stop-color="#2ff5a6" />
+                <stop offset="0.82" stop-color="#0fc77f" />
+                <stop offset="1" stop-color="#046a43" />
+              </radialGradient>
+              <!-- Luz refletida na borda oposta, embaixo à direita. -->
+              <radialGradient id="mascot-rim" cx="0.5" cy="0.5" r="0.5" fx="0.32" fy="0.28">
+                <stop offset="0.78" stop-color="#b4ffe0" stop-opacity="0" />
+                <stop offset="1" stop-color="#b4ffe0" stop-opacity="0.55" />
+              </radialGradient>
+              <!-- Reflexo de luz com borda suave. -->
+              <radialGradient id="mascot-spec" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+              </radialGradient>
+              <linearGradient id="mascot-iris" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#031c13" />
+                <stop offset="1" stop-color="#0b3526" />
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="11" fill="url(#mascot-body)" />
+            <circle cx="12" cy="12" r="11" fill="url(#mascot-rim)" />
+            <ellipse cx="8" cy="6.4" rx="3" ry="1.9" fill="url(#mascot-spec)" transform="rotate(-32 8 6.4)" />
+            <g class="mascot-eyes">
+              <g class="mascot-eye">
+                <rect x="7.3" y="8.9" width="3.7" height="6.4" rx="1.85" fill="url(#mascot-iris)" />
+                <circle class="mascot-glint" cx="8.55" cy="10.4" r="0.85" fill="#fff" />
+              </g>
+              <g class="mascot-eye">
+                <rect x="13" y="8.9" width="3.7" height="6.4" rx="1.85" fill="url(#mascot-iris)" />
+                <circle class="mascot-glint" cx="14.25" cy="10.4" r="0.85" fill="#fff" />
+              </g>
             </g>
-            <g class="mascot-eye">
-              <ellipse class="mascot-white" cx="15.6" cy="10.5" rx="2.9" ry="3.4" />
-              <circle class="mascot-pupil" cx="15.6" cy="10.8" r="1.7" />
-            </g>
-            <path class="mascot-smile" d="M10 15.6 q2 1.6 4 0" />
           </svg>
         </div>
         <div class="pill-center"><span class="pill-title"></span></div>
