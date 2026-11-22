@@ -3,30 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mirante</title>
+    <title>Notify</title>
     <meta
       name="description"
       content="Uma ilha no topo da tela com a música que está tocando, seus arquivos, atalhos e o uso das suas IAs. Para Windows, macOS e Linux."
     />
     <link rel="icon" href="assets/icon.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap"
-    />
+    <link rel="preload" href="assets/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="styles.css" />
     <script src="config.js" defer></script>
     <script src="main.js" defer></script>
   </head>
   <body>
+    <!-- Textos com data-site="…" e a lista de downloads vêm do config.js:
+         o que está escrito aqui só aparece se o JavaScript não rodar. -->
+
     <!-- A ilha de demonstração fica presa ao topo da página, como o app fica
          preso ao topo da tela. -->
     <button class="island" type="button" aria-expanded="false" aria-label="Abrir a ilha de demonstração">
-      <img class="island-pill" src="assets/pill.png" alt="" width="220" height="32" />
+      <img class="island-pill" src="assets/pill.webp" alt="" width="220" height="32" />
       <img
         class="island-panel"
-        src="assets/home.png"
+        src="assets/home.webp"
         alt="A ilha aberta: música tocando com capa e controles, relógio e calendário do mês"
         width="680"
         height="300"
@@ -44,7 +42,7 @@
     <header class="top">
       <a class="brand" href="#">
         <img src="assets/icon.png" alt="" width="28" height="28" />
-        <span data-site="name">Mirante</span>
+        <span data-site="name">Notify</span>
       </a>
       <nav aria-label="Seções">
         <a href="#recursos">Recursos</a>
@@ -55,21 +53,19 @@
 
     <main>
       <section class="hero">
-        <div class="hero-text">
-          <h1>Uma ilha no topo da tela com o que você usa o dia todo.</h1>
-          <p class="lead">
-            Pare o mouse no alto da tela e o <span data-site="name">Mirante</span> abre: a música que
-            está tocando, arquivos que você quer ter à mão, seus atalhos e quanto você já usou do
-            Claude Code e do Codex hoje. Tire o mouse e ele volta a ser uma pílula discreta.
-          </p>
-          <div class="hero-actions">
-            <a class="button primary" data-download="primary" href="#baixar">Baixar</a>
-            <a class="button quiet" href="#baixar">Outros sistemas</a>
-          </div>
-          <p class="hero-meta">
-            Versão <span data-site="version">0.1.0</span>. Windows, macOS e Linux.
-          </p>
+        <h1>Uma ilha no topo da tela com o que você usa o dia todo.</h1>
+        <p class="lead">
+          Pare o mouse no alto da tela e o <span data-site="name">Notify</span> abre: a música que
+          está tocando, arquivos que você quer ter à mão, seus atalhos e quanto você já usou do
+          Claude Code e do Codex hoje. Tire o mouse e ele volta a ser uma pílula discreta.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" data-download="primary" href="#baixar">Baixar</a>
+          <a class="button quiet" href="#baixar">Outros sistemas</a>
         </div>
+        <p class="hero-meta">
+          Versão <span data-site="version">0.1.0</span>. Windows, macOS e Linux.
+        </p>
       </section>
 
       <section class="features" id="recursos" aria-labelledby="features-title">
@@ -106,7 +102,7 @@
             </button>
           </div>
           <figure class="feature-shot" id="feature-shot" role="tabpanel" aria-labelledby="tab-home">
-            <img src="assets/home.png" alt="Aba Início: música tocando, relógio e calendário" width="680" height="300" />
+            <img src="assets/home.webp" alt="Aba Início: música tocando, relógio e calendário" width="680" height="300" loading="lazy" />
           </figure>
         </div>
       </section>
@@ -128,7 +124,7 @@
           <div>
             <dt>Seus dados ficam no seu computador</dt>
             <dd>
-              O <span data-site="name">Mirante</span> não tem servidor e não envia seus arquivos,
+              O <span data-site="name">Notify</span> não tem servidor e não envia seus arquivos,
               músicas ou uso de IA para lugar nenhum. Ele nunca lê senhas, tokens de acesso ou cookies.
             </dd>
           </div>
@@ -203,7 +199,7 @@
     </main>
 
     <footer class="bottom">
-      <p><span data-site="name">Mirante</span> <span data-site="version">0.1.0</span></p>
+      <p><span data-site="name">Notify</span> <span data-site="version">0.1.0</span></p>
       <p class="contact" hidden>Contato: <a data-site-href="contact" data-site="contact" href="#"></a></p>
     </footer>
   </body>

@@ -75,6 +75,23 @@ permissões e CSP além do necessário, leitura de arquivos sem validação,
 dependências sem uso e lógica de parsing sem teste. Corrija ou registre cada
 item encontrado.
 
-## 7. Commits
+## 7. Site (`site/`)
+
+- **Leve em qualquer aparelho.** Primeira visita com menos de 150 KB
+  transferidos. Nada de biblioteca ou framework JavaScript; nada de vídeo de
+  fundo. Imagens em WebP com `width`, `height` e `loading="lazy"` abaixo da
+  dobra.
+- **Movimento só quando a pessoa age** (hover, clique, troca de aba). Nada de
+  animação em loop, nem animação de entrada em cada seção. Respeite
+  `prefers-reduced-motion`.
+- **Só o necessário.** Cada seção, regra de CSS e linha de JS precisa servir à
+  explicação do produto, ao download ou à interação. Sem enfeite.
+- **Fácil de editar à mão.** Valores que mudam (nome, versão, preço, links)
+  ficam só no `config.js`; cores só nas variáveis do topo do `styles.css`; CSS
+  dividido por seção, na mesma ordem do HTML.
+- **Verificação:** abrir no computador e no celular, conferir o console sem
+  erros e sem rolagem horizontal, e medir o peso da primeira visita.
+
+## 8. Commits
 
 Um assunto por commit. A mensagem diz o que mudou e por quê.

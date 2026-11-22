@@ -98,7 +98,7 @@
       t.setAttribute("aria-selected", String(on));
       t.tabIndex = on ? 0 : -1;
     });
-    shotImg.src = `assets/${tab.dataset.shot}.png`;
+    shotImg.src = `assets/${tab.dataset.shot}.webp`;
     shotImg.alt = `Aba ${tab.querySelector("strong").textContent} do app`;
     shot.setAttribute("aria-labelledby", tab.id);
   };
