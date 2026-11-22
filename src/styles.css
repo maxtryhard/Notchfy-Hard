@@ -118,19 +118,27 @@ svg .fill {
 
 /* ---------- Pílula recolhida ---------- */
 
+/* Pílula e painel têm tamanho fixo e ficam presos ao topo: a ilha só os revela.
+   Assim nada se reorganiza a cada quadro da animação. */
 .pill {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  width: var(--cw);
+  height: var(--ch);
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   padding: 0 12px;
   gap: 8px;
-  transition: opacity 0.18s var(--ease);
+  /* Ao recolher, a pílula só volta depois que o painel sumiu. */
+  transition: opacity 0.18s var(--ease) 0.14s;
 }
 
 .island[data-state="expanded"] .pill {
   opacity: 0;
   pointer-events: none;
+  transition: opacity 0.08s var(--ease);
 }
 
 .pill-side {
@@ -238,20 +246,31 @@ svg .fill {
 
 .panel {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 50%;
+  width: var(--ew);
+  height: var(--eh);
   display: grid;
   grid-template-columns: 56px 1fr;
   padding: calc(var(--ch) + 6px) 14px 14px 10px;
   gap: 12px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s var(--ease);
+  transform: translateX(-50%) translateY(-10px) scale(0.97);
+  transform-origin: top center;
+  transition:
+    opacity 0.1s var(--ease),
+    transform 0.12s var(--ease);
 }
 
+/* O conteúdo desce junto com a ilha, em vez de surgir depois dela. */
 .island[data-state="expanded"] .panel {
   opacity: 1;
   pointer-events: auto;
-  transition: opacity 0.25s var(--ease) 0.1s;
+  transform: translateX(-50%);
+  transition:
+    opacity 0.22s var(--ease) 0.06s,
+    transform 0.42s var(--spring);
 }
 
 .tabs {

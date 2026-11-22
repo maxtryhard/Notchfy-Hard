@@ -1,6 +1,8 @@
 # Notchfy-Hard
 
 Uma barra interativa que fica no topo da tela, para macOS, Windows e Linux.
+
+![A ilha abrindo, trocando de aba e recolhendo](docs/media/animacao.gif)
 Recolhida, ela é uma pílula com a hora e o que está tocando. Ao passar o mouse,
 abre um painel com quatro abas:
 
