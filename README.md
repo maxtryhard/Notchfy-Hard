@@ -37,6 +37,10 @@ npm run tauri build    # instalador em src-tauri/target/release/bundle/
 O app não aparece no Dock nem na barra de tarefas. Para sair, use o ícone na
 bandeja do sistema (barra de menus no Mac) → **Sair**.
 
+**Atualizações:** o app avisa quando há versão nova (ponto verde ao lado da
+hora) e se atualiza com um clique. Como publicar uma versão está em
+[docs/ATUALIZACOES.md](docs/ATUALIZACOES.md).
+
 Cada push roda o workflow `build` no GitHub Actions, que compila e testa nos três
 sistemas e anexa os instaladores (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`) à execução.
 

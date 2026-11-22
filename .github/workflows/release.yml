@@ -1,0 +1,80 @@
+name: publicar versão
+
+# Roda só quando alguém clica em "Run workflow". Compila os três sistemas,
+# assina as atualizações e publica no repositório público de versões, de onde
+# o app instalado baixa as novidades. Passo a passo em docs/ATUALIZACOES.md.
+on:
+  workflow_dispatch:
+
+env:
+  RELEASES_OWNER: maxtryhard
+  RELEASES_REPO: Notify-Releases
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - os: windows-latest
+            args: ""
+            rust-targets: ""
+          - os: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependências do Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev \
+            libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      # Sobe como rascunho: o app só enxerga a versão quando o job "publish"
+      # publicar, depois que os três sistemas terminarem.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          owner: ${{ env.RELEASES_OWNER }}
+          repo: ${{ env.RELEASES_REPO }}
+          tagName: v__VERSION__
+          releaseName: Notify v__VERSION__
+          releaseBody: Baixe o instalador do seu sistema abaixo. Quem já tem o app recebe esta versão pelo botão Atualizar.
+          releaseDraft: true
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publicar a versão
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          gh release edit "v$version" --repo "$RELEASES_OWNER/$RELEASES_REPO" --draft=false --latest

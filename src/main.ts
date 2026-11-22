@@ -8,6 +8,7 @@ import { initMedia, setMediaFast } from "./media";
 import { initNotices } from "./notices";
 import { initShelf, isDraggingOut, renderShelf } from "./shelf";
 import { initShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
+import { initUpdates } from "./updates";
 import { $, $$, errorText, toast } from "./util";
 
 type Tab = "home" | "shelf" | "shortcuts" | "ai";
@@ -139,6 +140,7 @@ async function main() {
   initMedia();
   await initMascot();
   await initNotices();
+  initUpdates();
   initAi();
   initShortcuts(renderData, () => scheduleCollapse(150));
   await initShelf(renderData);

@@ -232,6 +232,43 @@ svg .fill {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ponto verde ao lado da hora: há versão nova esperando (src/updates.ts). */
+.island.update-ready .pill-time::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 2px;
+}
+
+/* ---------- Atualização ---------- */
+
+.update-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-top: auto;
+  padding: 7px 0 5px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.update-button:not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.update-button:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
 .eq {
   display: inline-flex;
   align-items: flex-end;
@@ -382,6 +419,12 @@ svg .fill {
   transition:
     opacity 0.22s var(--ease) 0.06s,
     transform 0.42s var(--spring);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .tabs {
