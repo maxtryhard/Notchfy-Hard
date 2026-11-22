@@ -249,15 +249,21 @@ mod imp {
         let key = format!("{}|{}|{}", s.SourceAppUserModelId()?, title, artist);
         let seconds = |t: TimeSpan| t.Duration as f64 / 10_000_000.0;
         let playing = info.PlaybackStatus()? == Status::Playing;
+        // Os tempos do Windows são medidos a partir do início da faixa, que nem
+        // todo player informa como zero.
+        let start = timeline
+            .as_ref()
+            .and_then(|t| t.StartTime().ok())
+            .map_or(0.0, seconds);
         let duration = timeline
             .as_ref()
             .and_then(|t| t.EndTime().ok())
-            .map(seconds)
+            .map(|end| seconds(end) - start)
             .filter(|d| *d > 0.0);
         // Spotify e navegadores só atualizam a posição de tempos em tempos; o
         // horário dessa atualização diz quanto a música andou desde então.
         let position = timeline.as_ref().and_then(|t| {
-            let reported = seconds(t.Position().ok()?);
+            let reported = seconds(t.Position().ok()?) - start;
             let age = seconds_since(t.LastUpdatedTime().ok()?);
             Some(current_position(reported, age, playing, duration))
         });
