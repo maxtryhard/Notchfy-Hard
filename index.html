@@ -11,8 +11,21 @@
       <!-- Pílula recolhida: no Mac com notch, o centro fica vazio sobre o recorte. -->
       <div class="pill" aria-hidden="true">
         <div class="pill-side pill-left">
-          <img class="pill-art" alt="" hidden />
-          <span class="pill-dot"></span>
+          <!-- Mascote: os olhos seguem o cursor (src/mascot.ts). -->
+          <svg class="mascot" viewBox="0 0 24 24">
+            <circle class="mascot-face" cx="12" cy="12" r="11" />
+            <circle class="mascot-cheek" cx="5.6" cy="15" r="1.8" />
+            <circle class="mascot-cheek" cx="18.4" cy="15" r="1.8" />
+            <g class="mascot-eye">
+              <ellipse class="mascot-white" cx="8.4" cy="10.5" rx="2.9" ry="3.4" />
+              <circle class="mascot-pupil" cx="8.4" cy="10.8" r="1.7" />
+            </g>
+            <g class="mascot-eye">
+              <ellipse class="mascot-white" cx="15.6" cy="10.5" rx="2.9" ry="3.4" />
+              <circle class="mascot-pupil" cx="15.6" cy="10.8" r="1.7" />
+            </g>
+            <path class="mascot-smile" d="M10 15.6 q2 1.6 4 0" />
+          </svg>
         </div>
         <div class="pill-center"><span class="pill-title"></span></div>
         <div class="pill-side pill-right">

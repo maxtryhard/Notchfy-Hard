@@ -5,6 +5,9 @@
 //! Também decide quando a janela recebe o mouse. Ela é maior que a pílula
 //! (tem o tamanho do painel aberto), então fora da área ativa precisa deixar
 //! cliques e rolagem passarem para o app de baixo.
+//!
+//! E, com a ilha fechada, avisa onde o cursor está para os olhos do mascote
+//! acompanharem: só quando o cursor se move, então mouse parado não custa nada.
 
 use std::{
     sync::{Arc, Mutex},
@@ -12,9 +15,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use serde::Serialize;
 use tauri::{Emitter, WebviewWindow};
 
 pub const HOVER_EVENT: &str = "island-hover";
+pub const CURSOR_EVENT: &str = "island-cursor";
 
 /// Tempo parado sobre a ilha antes de abrir. Evita abrir quando o mouse só
 /// atravessa o topo da tela a caminho de outra coisa.
@@ -24,6 +29,8 @@ const FAST: Duration = Duration::from_millis(40);
 const SLOW: Duration = Duration::from_millis(100);
 /// Distância, em pixels físicos, abaixo da ilha que ainda conta como "perto".
 const NEAR_TOP: f64 = 300.0;
+/// Movimento mínimo do cursor, em pixels lógicos, para avisar o mascote.
+const CURSOR_STEP: f64 = 2.0;
 
 /// Retângulo da janela na tela, em pixels físicos.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -40,11 +47,35 @@ impl Rect {
     }
 }
 
-/// Onde a ilha está agora; `None` com ela escondida. Quem redimensiona a
-/// janela atualiza este valor, e assim cada ciclo do detector só precisa
-/// perguntar ao sistema onde está o cursor (perguntar o tamanho da janela
-/// também acordaria a thread principal à toa).
-pub type Area = Arc<Mutex<Option<Rect>>>;
+/// Onde a ilha está na tela e em que estado.
+#[derive(Clone, Copy, Debug)]
+pub struct Zone {
+    /// Onde o mouse conta como "em cima": a pílula ou o painel aberto.
+    pub active: Rect,
+    /// Canto superior esquerdo da janela, em pixels físicos.
+    pub window_left: f64,
+    pub window_top: f64,
+    pub scale: f64,
+    pub expanded: bool,
+}
+
+/// `None` com a ilha escondida. Quem posiciona a janela ou troca o estado
+/// atualiza este valor, e assim cada ciclo do detector só precisa perguntar
+/// ao sistema onde está o cursor (perguntar a posição da janela também
+/// acordaria a thread principal à toa).
+pub type Area = Arc<Mutex<Option<Zone>>>;
+
+/// Posição do cursor relativa ao canto da janela, em pixels lógicos (os
+/// mesmos do CSS).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+struct Pointer {
+    x: f64,
+    y: f64,
+}
+
+fn moved_enough(last: Option<Pointer>, now: Pointer) -> bool {
+    last.is_none_or(|l| (l.x - now.x).abs() >= CURSOR_STEP || (l.y - now.y).abs() >= CURSOR_STEP)
+}
 
 /// Transforma amostras "dentro/fora" em eventos, aplicando a espera de intenção.
 #[derive(Default)]
@@ -76,10 +107,12 @@ impl Intent {
 struct Sample {
     inside: bool,
     near_top: bool,
+    /// Só com a ilha fechada, quando o mascote está à vista.
+    pointer: Option<Pointer>,
 }
 
 fn sample(window: &WebviewWindow, area: &Area) -> Sample {
-    let Some(rect) = *area.lock().unwrap() else {
+    let Some(zone) = *area.lock().unwrap() else {
         return Sample::default();
     };
     // Sem posição do cursor (raro, ex.: sessão bloqueada) tratamos como fora.
@@ -87,8 +120,12 @@ fn sample(window: &WebviewWindow, area: &Area) -> Sample {
         return Sample::default();
     };
     Sample {
-        inside: rect.contains(cursor.x, cursor.y),
-        near_top: cursor.y < rect.bottom + NEAR_TOP,
+        inside: zone.active.contains(cursor.x, cursor.y),
+        near_top: cursor.y < zone.active.bottom + NEAR_TOP,
+        pointer: (!zone.expanded).then(|| Pointer {
+            x: (cursor.x - zone.window_left) / zone.scale,
+            y: (cursor.y - zone.window_top) / zone.scale,
+        }),
     }
 }
 
@@ -96,6 +133,7 @@ pub fn watch(window: WebviewWindow, area: Area) {
     thread::spawn(move || {
         let mut intent = Intent::default();
         let mut receives_mouse = None;
+        let mut last_pointer = None;
         loop {
             let s = sample(&window, &area);
             // Sem esperar a intenção: o clique na pílula precisa funcionar na hora.
@@ -108,6 +146,11 @@ pub fn watch(window: WebviewWindow, area: Area) {
             if let Some(hovering) = intent.update(s.inside, Instant::now()) {
                 // Só falha com a janela sendo destruída; não há a quem avisar.
                 let _ = window.emit(HOVER_EVENT, hovering);
+            }
+            if let Some(p) = s.pointer.filter(|p| moved_enough(last_pointer, *p)) {
+                last_pointer = Some(p);
+                // Mesmo caso acima: só falha com a janela sendo destruída.
+                let _ = window.emit(CURSOR_EVENT, p);
             }
             thread::sleep(if s.near_top { FAST } else { SLOW });
         }
@@ -132,6 +175,18 @@ mod tests {
         assert_eq!(i.update(true, at(t, 200)), None, "não repete o evento");
         assert_eq!(i.update(false, at(t, 240)), Some(false));
         assert_eq!(i.update(false, at(t, 280)), None, "não repete a saída");
+    }
+
+    #[test]
+    fn mascot_hears_only_real_movement() {
+        let p = |x, y| Pointer { x, y };
+        assert!(
+            moved_enough(None, p(10.0, 10.0)),
+            "primeira posição sempre conta"
+        );
+        assert!(!moved_enough(Some(p(10.0, 10.0)), p(11.5, 10.5)));
+        assert!(moved_enough(Some(p(10.0, 10.0)), p(12.0, 10.0)));
+        assert!(moved_enough(Some(p(10.0, 10.0)), p(10.0, 7.5)));
     }
 
     #[test]

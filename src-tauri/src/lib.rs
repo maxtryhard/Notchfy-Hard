@@ -117,11 +117,21 @@ fn active_area(p: Placement, layout: Layout, expanded: bool) -> hover::Rect {
     }
 }
 
+fn zone(p: Placement, layout: Layout, expanded: bool) -> hover::Zone {
+    hover::Zone {
+        active: active_area(p, layout, expanded),
+        window_left: p.x * p.scale,
+        window_top: p.y * p.scale,
+        scale: p.scale,
+        expanded,
+    }
+}
+
 /// Posiciona a ilha fechada e avisa o detector de hover.
 fn show_collapsed(window: &WebviewWindow, state: &AppState) -> tauri::Result<()> {
     let placement = place(window, state.layout)?;
     *state.placement.lock().unwrap() = placement;
-    *state.hover_area.lock().unwrap() = placement.map(|p| active_area(p, state.layout, false));
+    *state.hover_area.lock().unwrap() = placement.map(|p| zone(p, state.layout, false));
     window.show()
 }
 
@@ -133,7 +143,7 @@ fn get_layout(state: State<'_, AppState>) -> Layout {
 #[tauri::command]
 fn set_expanded(state: State<'_, AppState>, expanded: bool) {
     if let Some(p) = *state.placement.lock().unwrap() {
-        *state.hover_area.lock().unwrap() = Some(active_area(p, state.layout, expanded));
+        *state.hover_area.lock().unwrap() = Some(zone(p, state.layout, expanded));
     }
 }
 

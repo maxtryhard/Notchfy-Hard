@@ -3,6 +3,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { api, type Data, type Layout } from "./api";
 import { initAi, refreshAi } from "./ai";
 import { initClock, resetCalendar } from "./clock";
+import { initMascot } from "./mascot";
 import { initMedia, setMediaFast } from "./media";
 import { initShelf, isDraggingOut, renderShelf } from "./shelf";
 import { initShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
@@ -133,6 +134,7 @@ async function main() {
   applyLayout(await api.layout());
   initClock();
   initMedia();
+  await initMascot();
   initAi();
   initShortcuts(renderData, () => scheduleCollapse(150));
   await initShelf(renderData);

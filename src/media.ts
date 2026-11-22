@@ -27,6 +27,9 @@ function renderProgress() {
   const m = current;
   const pos = m ? livePosition(m) : null;
   const ratio = m && pos != null && m.duration ? pos / m.duration : 0;
+  // Sem duração (alguns players não informam), uma barra parada no começo só
+  // confundiria: some a barra e fica só o tempo corrido.
+  $(".progress").hidden = !m?.duration;
   $(".progress-bar").style.transform = `scaleX(${ratio})`;
   $(".t-pos").textContent = formatDuration(pos);
   $(".t-dur").textContent = formatDuration(m?.duration);
@@ -41,7 +44,6 @@ function render(m: MediaState) {
   $(".media-artist").textContent = m.available ? m.artist || m.album : "Abra um player de música";
   $(".pill-title").textContent = m.available ? m.title : "";
   setArt($<HTMLImageElement>(".art"), m.art);
-  setArt($<HTMLImageElement>(".pill-art"), m.playing ? m.art : null);
   $(".eq").hidden = !m.playing;
   $(".i-play").toggleAttribute("hidden", m.playing);
   $(".i-pause").toggleAttribute("hidden", !m.playing);

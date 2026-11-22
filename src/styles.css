@@ -179,27 +179,51 @@ svg .fill {
   display: none;
 }
 
-.pill-art {
+/* ---------- Mascote ---------- */
+
+.mascot {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
-  object-fit: cover;
 }
 
-.pill-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #3a3d44;
+.mascot * {
+  stroke: none;
 }
 
-.island.playing .pill-dot {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+.mascot-face {
+  fill: var(--accent);
 }
 
-.pill-art:not([hidden]) + .pill-dot {
-  display: none;
+.mascot-cheek {
+  fill: #ff7eb0;
+  opacity: 0.8;
+}
+
+.mascot-white {
+  fill: #fff;
+}
+
+.mascot-pupil {
+  fill: #0b2a1f;
+  transition: transform 0.12s ease-out;
+}
+
+/* A piscada achata os olhos por um instante (classe posta em mascot.ts). */
+.mascot-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.07s ease-in;
+}
+
+.mascot.blink .mascot-eye {
+  transform: scaleY(0.12);
+}
+
+.mascot-smile {
+  fill: none;
+  stroke: #0b2a1f;
+  stroke-width: 1.3;
+  stroke-linecap: round;
 }
 
 .pill-time {
@@ -215,21 +239,35 @@ svg .fill {
   height: 12px;
 }
 
-/* Parado de propósito: uma animação em loop obriga o Windows a redesenhar a
-   janela transparente o tempo todo enquanto a música toca. */
+/* Única animação em loop do app, e só enquanto toca música. Anima só
+   `transform`, que o navegador resolve sem refazer o layout. Se a ilha travar
+   com música no Windows, é o primeiro suspeito. */
 .eq i {
   width: 3px;
-  height: 45%;
+  height: 100%;
   border-radius: 2px;
   background: var(--accent);
+  transform-origin: bottom;
+  will-change: transform;
+  animation: eq 0.9s ease-in-out infinite;
 }
 
 .eq i:nth-child(2) {
-  height: 100%;
+  animation-delay: -0.3s;
 }
 
 .eq i:nth-child(3) {
-  height: 70%;
+  animation-delay: -0.6s;
+}
+
+@keyframes eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 
 /* ---------- Painel aberto ---------- */
@@ -1006,12 +1044,15 @@ svg .fill {
   .island,
   .panel,
   .pill,
-  .tab-highlight {
+  .tab-highlight,
+  .mascot-pupil,
+  .mascot-eye {
     transition: none !important;
   }
   .view,
   .cal-grid,
-  .cal-title {
+  .cal-title,
+  .eq i {
     animation: none !important;
   }
 }
