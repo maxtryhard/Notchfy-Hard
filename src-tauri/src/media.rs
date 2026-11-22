@@ -33,6 +33,18 @@ pub fn control(action: &str) -> Result<(), String> {
     }
 }
 
+/// Posição atual a partir da última posição informada pelo player e de quantos
+/// segundos se passaram desde aquela medida.
+#[cfg(any(windows, test))]
+fn current_position(reported: f64, age: f64, playing: bool, duration: Option<f64>) -> f64 {
+    let position = if playing {
+        reported + age.max(0.0)
+    } else {
+        reported
+    };
+    duration.map_or(position, |d| position.min(d))
+}
+
 /// A capa só muda quando a faixa muda; guardamos a última para não reler o
 /// arquivo (ou o stream do Windows) a cada atualização.
 #[cfg(not(target_os = "macos"))]
@@ -158,23 +170,51 @@ mod imp {
 #[cfg(windows)]
 mod imp {
     use super::*;
+    use std::{
+        sync::OnceLock,
+        time::{SystemTime, UNIX_EPOCH},
+    };
     use windows::{
+        Foundation::{DateTime, TimeSpan},
         Media::Control::{
             GlobalSystemMediaTransportControlsSession as Session,
             GlobalSystemMediaTransportControlsSessionManager as Manager,
+            GlobalSystemMediaTransportControlsSessionMediaProperties as MediaProperties,
             GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
         },
         Storage::Streams::DataReader,
     };
 
     const MAX_ART_BYTES: u64 = 4 * 1024 * 1024;
+    /// Diferença entre o relógio do WinRT (intervalos de 100 ns desde 1601) e
+    /// o relógio Unix (desde 1970).
+    const WINRT_TO_UNIX_TICKS: i64 = 116_444_736_000_000_000;
 
-    fn session() -> windows::core::Result<Session> {
-        Manager::RequestAsync()?.join()?.GetCurrentSession()
+    /// Abrir o gerenciador de mídia é a parte cara da consulta; abrimos uma vez.
+    static MANAGER: OnceLock<Manager> = OnceLock::new();
+
+    fn manager() -> windows::core::Result<&'static Manager> {
+        if let Some(m) = MANAGER.get() {
+            return Ok(m);
+        }
+        // Só guarda depois de abrir com sucesso; uma falha é tentada de novo.
+        let m = Manager::RequestAsync()?.join()?;
+        Ok(MANAGER.get_or_init(|| m))
     }
 
-    fn thumbnail(s: &Session) -> windows::core::Result<Option<String>> {
-        let props = s.TryGetMediaPropertiesAsync()?.join()?;
+    fn session() -> windows::core::Result<Session> {
+        manager()?.GetCurrentSession()
+    }
+
+    fn seconds_since(time: DateTime) -> f64 {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos() as i64 / 100 + WINRT_TO_UNIX_TICKS)
+            .unwrap_or(time.UniversalTime);
+        (now - time.UniversalTime) as f64 / 10_000_000.0
+    }
+
+    fn thumbnail(props: &MediaProperties) -> windows::core::Result<Option<String>> {
         let Ok(reference) = props.Thumbnail() else {
             return Ok(None);
         };
@@ -207,19 +247,28 @@ mod imp {
         let title = props.Title()?.to_string();
         let artist = props.Artist()?.to_string();
         let key = format!("{}|{}|{}", s.SourceAppUserModelId()?, title, artist);
-        let ticks = |t: windows::Foundation::TimeSpan| t.Duration as f64 / 10_000_000.0;
+        let seconds = |t: TimeSpan| t.Duration as f64 / 10_000_000.0;
+        let playing = info.PlaybackStatus()? == Status::Playing;
+        let duration = timeline
+            .as_ref()
+            .and_then(|t| t.EndTime().ok())
+            .map(seconds)
+            .filter(|d| *d > 0.0);
+        // Spotify e navegadores só atualizam a posição de tempos em tempos; o
+        // horário dessa atualização diz quanto a música andou desde então.
+        let position = timeline.as_ref().and_then(|t| {
+            let reported = seconds(t.Position().ok()?);
+            let age = seconds_since(t.LastUpdatedTime().ok()?);
+            Some(current_position(reported, age, playing, duration))
+        });
         Ok(MediaState {
             available: true,
-            playing: info.PlaybackStatus()? == Status::Playing,
+            playing,
             album: props.AlbumTitle()?.to_string(),
             player: s.SourceAppUserModelId()?.to_string(),
-            art: cached_art(&key, || thumbnail(&s).ok().flatten()),
-            position: timeline.as_ref().and_then(|t| t.Position().ok()).map(ticks),
-            duration: timeline
-                .as_ref()
-                .and_then(|t| t.EndTime().ok())
-                .map(ticks)
-                .filter(|d| *d > 0.0),
+            art: cached_art(&key, || thumbnail(&props).ok().flatten()),
+            position,
+            duration,
             title,
             artist,
         })
@@ -342,5 +391,26 @@ mod imp {
     }
     pub fn control(_: &str) -> Result<(), String> {
         Err("Sistema sem suporte a controle de mídia".into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::current_position;
+
+    #[test]
+    fn position_advances_only_while_playing() {
+        assert_eq!(current_position(30.0, 4.5, true, Some(200.0)), 34.5);
+        assert_eq!(current_position(30.0, 4.5, false, Some(200.0)), 30.0);
+    }
+
+    #[test]
+    fn position_never_passes_the_end_or_goes_back() {
+        assert_eq!(current_position(198.0, 10.0, true, Some(200.0)), 200.0);
+        assert_eq!(
+            current_position(30.0, -2.0, true, None),
+            30.0,
+            "relógio adiantado no player"
+        );
     }
 }
