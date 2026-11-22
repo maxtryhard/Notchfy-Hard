@@ -453,7 +453,7 @@ svg .fill {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 7px 0 5px;
+  padding: 5px 0 4px;
   border-radius: 10px;
   color: var(--muted);
   font-size: 10px;
@@ -808,6 +808,131 @@ svg .fill {
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 700;
+}
+
+/* ---------- Notificações ---------- */
+
+/* Interruptor: o checkbox fica invisível por cima da trilha desenhada. */
+.switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch-track {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--card-hover);
+  transition: background 0.18s var(--ease);
+}
+
+.switch-track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--muted);
+  transition:
+    transform 0.22s var(--spring),
+    background 0.18s;
+}
+
+.switch input:checked + .switch-track {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.switch input:checked + .switch-track::after {
+  transform: translateX(12px);
+  background: var(--accent);
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* A aba tem o interruptor no lugar do "margin-left: auto" do botão Limpar. */
+.view[data-view="inbox"] .view-head .ghost {
+  margin-left: 0;
+}
+
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+
+.inbox-item .peek-badge {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+
+.inbox-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.inbox-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10.5px;
+}
+
+.inbox-text strong {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inbox-body {
+  color: #c9ccd2;
+  font-size: 11.5px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.view[data-view="inbox"] .empty p {
+  max-width: 40ch;
 }
 
 /* ---------- Prateleira ---------- */
