@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Notify</title>
+    <meta
+      name="description"
+      content="Uma ilha no topo da tela com a música que está tocando, seus arquivos, atalhos e o uso das suas IAs. Para Windows, macOS e Linux."
+    />
+    <link rel="icon" href="assets/icon.png" />
+    <link rel="preload" href="assets/fonts/bricolage-grotesque-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="config.js" defer></script>
+    <script src="main.js" defer></script>
+  </head>
+  <body>
+    <!-- Textos com data-site="…" e a lista de downloads vêm do config.js:
+         o que está escrito aqui só aparece se o JavaScript não rodar. -->
+
+    <!-- A ilha de demonstração fica presa ao topo da página, como o app fica
+         preso ao topo da tela. -->
+    <button class="island" type="button" aria-expanded="false" aria-label="Abrir a ilha de demonstração">
+      <img class="island-pill" src="assets/pill.webp" alt="" width="220" height="32" />
+      <img
+        class="island-panel"
+        src="assets/home.webp"
+        alt="A ilha aberta: música tocando com capa e controles, relógio e calendário do mês"
+        width="680"
+        height="300"
+      />
+    </button>
+
+    <p class="try-it" aria-hidden="true">
+      <svg viewBox="0 0 48 24" width="40" height="20">
+        <path d="M46 18 C 34 22, 18 18, 6 8" />
+        <path d="M14 6 L5 7 L8 15" />
+      </svg>
+      Experimente: pare o mouse na pílula.
+    </p>
+
+    <header class="top">
+      <a class="brand" href="#">
+        <img src="assets/icon.png" alt="" width="28" height="28" />
+        <span data-site="name">Notify</span>
+      </a>
+      <nav aria-label="Seções">
+        <a href="#recursos">Recursos</a>
+        <a href="#perguntas">Perguntas</a>
+        <a class="nav-download" href="#baixar">Baixar</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>Uma ilha no topo da tela com o que você usa o dia todo.</h1>
+        <p class="lead">
+          Pare o mouse no alto da tela e o <span data-site="name">Notify</span> abre: a música que
+          está tocando, arquivos que você quer ter à mão, seus atalhos e quanto você já usou do
+          Claude Code e do Codex hoje. Tire o mouse e ele volta a ser uma pílula discreta.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" data-download="primary" href="#baixar">Baixar</a>
+          <a class="button quiet" href="#baixar">Outros sistemas</a>
+        </div>
+        <p class="hero-meta">
+          Versão <span data-site="version">0.1.0</span>. Windows, macOS e Linux.
+        </p>
+      </section>
+
+      <section class="features" id="recursos" aria-labelledby="features-title">
+        <h2 id="features-title">Quatro abas, um gesto</h2>
+        <div class="features-body">
+          <div class="feature-tabs" role="tablist" aria-label="Abas da ilha">
+            <button role="tab" id="tab-home" aria-controls="feature-shot" aria-selected="true" data-shot="home">
+              <strong>Início</strong>
+              <span>
+                Capa, título e controles do que está tocando no Spotify, no navegador ou no player do
+                sistema. Relógio e calendário do mês ao lado.
+              </span>
+            </button>
+            <button role="tab" id="tab-shelf" aria-controls="feature-shot" aria-selected="false" data-shot="shelf">
+              <strong>Prateleira</strong>
+              <span>
+                Solte arquivos na ilha e eles ficam guardados até você arrastá-los para onde precisa.
+                Leva um arquivo de uma pasta a outra sem abrir duas janelas.
+              </span>
+            </button>
+            <button role="tab" id="tab-shortcuts" aria-controls="feature-shot" aria-selected="false" data-shot="shortcuts">
+              <strong>Atalhos</strong>
+              <span>
+                Seus apps, pastas, sites e comandos favoritos a um clique. Você monta a lista direto
+                na ilha.
+              </span>
+            </button>
+            <button role="tab" id="tab-ai" aria-controls="feature-shot" aria-selected="false" data-shot="ai">
+              <strong>IA</strong>
+              <span>
+                Tokens usados hoje e nos últimos 7 dias no Claude Code e no Codex, lidos dos registros
+                que eles já guardam no seu computador.
+              </span>
+            </button>
+          </div>
+          <figure class="feature-shot" id="feature-shot" role="tabpanel" aria-labelledby="tab-home">
+            <img src="assets/home.webp" alt="Aba Início: música tocando, relógio e calendário" width="680" height="300" loading="lazy" />
+          </figure>
+        </div>
+      </section>
+
+      <section class="quiet-points" aria-labelledby="quiet-title">
+        <h2 id="quiet-title">Fica fora do caminho</h2>
+        <dl>
+          <div>
+            <dt>Abre quando você quer</dt>
+            <dd>
+              Ele espera você parar o mouse em cima por um instante. Passar pelo topo da tela a
+              caminho de outra coisa não abre nada. Um clique abre na hora.
+            </dd>
+          </div>
+          <div>
+            <dt>Leve</dt>
+            <dd>Parado, usa menos de 1% de um núcleo do processador.</dd>
+          </div>
+          <div>
+            <dt>Seus dados ficam no seu computador</dt>
+            <dd>
+              O <span data-site="name">Notify</span> não tem servidor e não envia seus arquivos,
+              músicas ou uso de IA para lugar nenhum. Ele nunca lê senhas, tokens de acesso ou cookies.
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="download" id="baixar" aria-labelledby="download-title">
+        <h2 id="download-title">Baixar</h2>
+        <p class="download-version">
+          Versão <span data-site="version">0.1.0</span>, de <span data-site="releaseDate">22 de novembro de 2026</span>.
+          Todas as versões ainda estão em teste.
+        </p>
+        <div class="price" hidden>
+          <p><span data-site="price"></span>, pagamento único, com atualizações.</p>
+          <a class="button primary" data-site-href="buyUrl" href="#">Comprar</a>
+        </div>
+        <ul class="download-list" data-downloads>
+          <li>
+            <div>
+              <strong>Windows</strong>
+              <span>Windows 10 ou 11, 64 bits</span>
+            </div>
+            <a class="button quiet" href="#">Baixar para Windows</a>
+          </li>
+        </ul>
+        <p class="download-note">
+          No Windows, o aviso "O Windows protegeu o computador" aparece porque o app ainda não tem
+          assinatura digital. Clique em Mais informações e depois em Executar assim mesmo.
+        </p>
+      </section>
+
+      <section class="faq" id="perguntas" aria-labelledby="faq-title">
+        <h2 id="faq-title">Perguntas</h2>
+        <details>
+          <summary>Precisa de um MacBook com notch?</summary>
+          <p>
+            Não. Em telas sem notch, que são a maioria no Windows e no Linux, a ilha é uma pílula
+            preta presa ao topo da tela. No MacBook com notch ela se encaixa em volta do recorte.
+          </p>
+        </details>
+        <details>
+          <summary>Quais players de música funcionam?</summary>
+          <p>
+            No Windows, qualquer app que apareça no controle de mídia do sistema, como Spotify e
+            navegadores. No Linux, qualquer player compatível com MPRIS. No macOS, Spotify e o app
+            Música.
+          </p>
+        </details>
+        <details>
+          <summary>De onde vêm os números da aba IA?</summary>
+          <p>
+            Dos registros que o Claude Code e o Codex já salvam no seu computador. O uso pelo site do
+            Claude ou do ChatGPT não fica nesses registros e não aparece. Os números são tokens, não
+            valores em dinheiro.
+          </p>
+        </details>
+        <details>
+          <summary>Como fecho o app?</summary>
+          <p>
+            Pelo ícone na área de notificação do Windows, na barra de menus do Mac ou na bandeja do
+            Linux: clique nele e escolha Sair.
+          </p>
+        </details>
+        <details>
+          <summary>Funciona no Linux com Wayland?</summary>
+          <p>
+            Sim, pelo XWayland, que vem instalado nas distribuições comuns. É assim que a ilha
+            consegue ficar presa ao topo da tela no GNOME.
+          </p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="bottom">
+      <p><span data-site="name">Notify</span> <span data-site="version">0.1.0</span></p>
+      <p class="contact" hidden>Contato: <a data-site-href="contact" data-site="contact" href="#"></a></p>
+    </footer>
+  </body>
+</html>
