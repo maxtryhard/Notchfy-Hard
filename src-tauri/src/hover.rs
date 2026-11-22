@@ -1,6 +1,10 @@
 //! Detecta o mouse sobre a ilha consultando a posição do cursor, em vez de
 //! depender do hover do WebView: no macOS uma janela sem foco pode não receber
 //! eventos de mouse, e a ilha nunca pega o foco.
+//!
+//! Também decide quando a janela recebe o mouse. Ela é maior que a pílula
+//! (tem o tamanho do painel aberto), então fora da área ativa precisa deixar
+//! cliques e rolagem passarem para o app de baixo.
 
 use std::{
     sync::{Arc, Mutex},
@@ -91,8 +95,16 @@ fn sample(window: &WebviewWindow, area: &Area) -> Sample {
 pub fn watch(window: WebviewWindow, area: Area) {
     thread::spawn(move || {
         let mut intent = Intent::default();
+        let mut receives_mouse = None;
         loop {
             let s = sample(&window, &area);
+            // Sem esperar a intenção: o clique na pílula precisa funcionar na hora.
+            // Se falhar, o estado não muda e o próximo ciclo tenta de novo.
+            if receives_mouse != Some(s.inside)
+                && window.set_ignore_cursor_events(!s.inside).is_ok()
+            {
+                receives_mouse = Some(s.inside);
+            }
             if let Some(hovering) = intent.update(s.inside, Instant::now()) {
                 // Só falha com a janela sendo destruída; não há a quem avisar.
                 let _ = window.emit(HOVER_EVENT, hovering);

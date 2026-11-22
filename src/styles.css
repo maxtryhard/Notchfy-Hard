@@ -215,31 +215,21 @@ svg .fill {
   height: 12px;
 }
 
+/* Parado de propósito: uma animação em loop obriga o Windows a redesenhar a
+   janela transparente o tempo todo enquanto a música toca. */
 .eq i {
   width: 3px;
-  height: 100%;
+  height: 45%;
   border-radius: 2px;
   background: var(--accent);
-  transform-origin: bottom;
-  animation: eq 0.9s ease-in-out infinite;
 }
 
 .eq i:nth-child(2) {
-  animation-delay: -0.3s;
+  height: 100%;
 }
 
 .eq i:nth-child(3) {
-  animation-delay: -0.6s;
-}
-
-@keyframes eq {
-  0%,
-  100% {
-    transform: scaleY(0.3);
-  }
-  50% {
-    transform: scaleY(1);
-  }
+  height: 70%;
 }
 
 /* ---------- Painel aberto ---------- */
@@ -274,9 +264,23 @@ svg .fill {
 }
 
 .tabs {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Fundo da aba escolhida: desliza até ela (posição definida em main.ts). */
+.tab-highlight {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-radius: 10px;
+  background: var(--card-hover);
+  transition:
+    transform 0.32s var(--spring),
+    height 0.32s var(--spring);
 }
 
 .tabs button {
@@ -299,7 +303,7 @@ svg .fill {
 
 .tabs button[aria-selected="true"] {
   color: var(--text);
-  background: var(--card-hover);
+  background: transparent;
 }
 
 .tabs button[aria-selected="true"] svg {
@@ -318,6 +322,29 @@ svg .fill {
   color: var(--accent-ink);
   font: 700 9px/15px system-ui, sans-serif;
   font-style: normal;
+}
+
+/* O conteúdo entra vindo do lado da aba anterior (classe definida em main.ts). */
+.view.enter-down {
+  animation: view-in-down 0.26s var(--ease);
+}
+
+.view.enter-up {
+  animation: view-in-up 0.26s var(--ease);
+}
+
+@keyframes view-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes view-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
 }
 
 .view {
@@ -569,6 +596,31 @@ svg .fill {
   background: var(--card-hover);
 }
 
+/* O mês novo entra pelo lado da seta clicada (classe definida em clock.ts). */
+.cal-grid.from-right,
+.cal-title.from-right {
+  animation: cal-from-right 0.24s var(--ease);
+}
+
+.cal-grid.from-left,
+.cal-title.from-left {
+  animation: cal-from-left 0.24s var(--ease);
+}
+
+@keyframes cal-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes cal-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
 .cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -751,21 +803,13 @@ svg .fill {
   transform: scale(0.95);
 }
 
+/* Em edição, cada atalho vira um alvo de remoção (sem animação em loop). */
 .shortcut-grid.editing .shortcut {
-  animation: wiggle 0.3s ease-in-out infinite alternate;
+  border-style: dashed;
 }
 
 .shortcut-grid.editing .shortcut:hover {
   border-color: var(--danger);
-}
-
-@keyframes wiggle {
-  from {
-    transform: rotate(-1.2deg);
-  }
-  to {
-    transform: rotate(1.2deg);
-  }
 }
 
 .shortcut-icon {
@@ -961,11 +1005,13 @@ svg .fill {
 @media (prefers-reduced-motion: reduce) {
   .island,
   .panel,
-  .pill {
+  .pill,
+  .tab-highlight {
     transition: none !important;
   }
-  .eq i,
-  .shortcut-grid.editing .shortcut {
-    animation: none;
+  .view,
+  .cal-grid,
+  .cal-title {
+    animation: none !important;
   }
 }

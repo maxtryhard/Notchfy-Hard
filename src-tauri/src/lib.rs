@@ -23,8 +23,8 @@ const PILL_HEIGHT: f64 = 32.0;
 /// esquerda, hora à direita).
 const NOTCH_WING: f64 = 64.0;
 
-/// Geometria da ilha. O frontend usa estes valores para desenhar a pílula
-/// exatamente do tamanho da janela recolhida.
+/// Geometria da ilha. O frontend desenha a pílula e o painel com estes valores,
+/// e o detector de hover usa os mesmos para saber onde o mouse conta.
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Layout {
@@ -60,32 +60,69 @@ struct AppState {
     store: Mutex<store::Store>,
     tokens: tokens::Cache,
     drag_icon: Option<String>,
+    placement: Mutex<Option<Placement>>,
     hover_area: hover::Area,
 }
 
-/// Centraliza a janela no topo do monitor principal com o tamanho pedido e
-/// avisa o detector de hover da nova área.
-fn place(window: &WebviewWindow, area: &hover::Area, width: f64, height: f64) -> tauri::Result<()> {
+/// Canto superior esquerdo da janela, em pixels lógicos, e a escala do monitor.
+#[derive(Clone, Copy)]
+struct Placement {
+    x: f64,
+    y: f64,
+    scale: f64,
+}
+
+/// A janela tem sempre o tamanho do painel aberto e nunca é redimensionada:
+/// redimensionar a cada hover deixava a abertura lenta e piscando no Windows.
+/// Abrir e fechar é só animação no CSS; fora da área ativa (ver `active_area`)
+/// a janela deixa o mouse passar para o app de baixo.
+fn place(window: &WebviewWindow, layout: Layout) -> tauri::Result<Option<Placement>> {
     let monitor = match window.primary_monitor()? {
         Some(m) => m,
         None => match window.current_monitor()? {
             Some(m) => m,
-            None => return Ok(()),
+            None => return Ok(None),
         },
     };
     let scale = monitor.scale_factor();
     let origin = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
-    let x = origin.x + ((size.width - width) / 2.0).round();
-    window.set_size(LogicalSize::new(width, height))?;
+    let x = origin.x + ((size.width - layout.expanded_width) / 2.0).round();
+    window.set_size(LogicalSize::new(
+        layout.expanded_width,
+        layout.expanded_height,
+    ))?;
     window.set_position(LogicalPosition::new(x, origin.y))?;
-    *area.lock().unwrap() = Some(hover::Rect {
-        left: x * scale,
-        top: origin.y * scale,
-        right: (x + width) * scale,
-        bottom: (origin.y + height) * scale,
-    });
-    Ok(())
+    Ok(Some(Placement {
+        x,
+        y: origin.y,
+        scale,
+    }))
+}
+
+/// Onde o mouse conta como "em cima da ilha": a pílula, com ela fechada; o
+/// painel inteiro, com ela aberta. Ambos ficam centralizados no topo da janela.
+fn active_area(p: Placement, layout: Layout, expanded: bool) -> hover::Rect {
+    let (w, h) = if expanded {
+        (layout.expanded_width, layout.expanded_height)
+    } else {
+        (layout.collapsed_width, layout.collapsed_height)
+    };
+    let left = p.x + (layout.expanded_width - w) / 2.0;
+    hover::Rect {
+        left: left * p.scale,
+        top: p.y * p.scale,
+        right: (left + w) * p.scale,
+        bottom: (p.y + h) * p.scale,
+    }
+}
+
+/// Posiciona a ilha fechada e avisa o detector de hover.
+fn show_collapsed(window: &WebviewWindow, state: &AppState) -> tauri::Result<()> {
+    let placement = place(window, state.layout)?;
+    *state.placement.lock().unwrap() = placement;
+    *state.hover_area.lock().unwrap() = placement.map(|p| active_area(p, state.layout, false));
+    window.show()
 }
 
 #[tauri::command]
@@ -94,18 +131,10 @@ fn get_layout(state: State<'_, AppState>) -> Layout {
 }
 
 #[tauri::command]
-fn set_expanded(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-    expanded: bool,
-) -> Result<(), String> {
-    let l = state.layout;
-    let (w, h) = if expanded {
-        (l.expanded_width, l.expanded_height)
-    } else {
-        (l.collapsed_width, l.collapsed_height)
-    };
-    place(&window, &state.hover_area, w, h).map_err(|e| e.to_string())
+fn set_expanded(state: State<'_, AppState>, expanded: bool) {
+    if let Some(p) = *state.placement.lock().unwrap() {
+        *state.hover_area.lock().unwrap() = Some(active_area(p, state.layout, expanded));
+    }
 }
 
 #[tauri::command]
@@ -204,16 +233,16 @@ fn write_drag_icon(app: &AppHandle) -> Option<String> {
     Some(path.to_string_lossy().into_owned())
 }
 
-/// A janela é criada aqui, e não no tauri.conf.json, porque o `resizable`
-/// precisa variar por sistema (ver `platform::configure_window`).
+/// A janela é criada aqui, e não no tauri.conf.json, porque o tamanho depende
+/// do notch detectado.
 fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow> {
     WebviewWindowBuilder::new(app, ISLAND, WebviewUrl::default())
         .title("Notchfy")
-        .inner_size(layout.collapsed_width, layout.collapsed_height)
+        .inner_size(layout.expanded_width, layout.expanded_height)
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)
-        .resizable(cfg!(target_os = "linux"))
+        .resizable(false)
         .maximizable(false)
         .minimizable(false)
         .shadow(false)
@@ -244,9 +273,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                         *state.hover_area.lock().unwrap() = None;
                         w.hide()
                     } else {
-                        let l = state.layout;
-                        place(&w, &state.hover_area, l.collapsed_width, l.collapsed_height)
-                            .and_then(|_| w.show())
+                        show_collapsed(&w, &state)
                     };
                 }
             }
@@ -279,6 +306,7 @@ pub fn run() {
                 store: Mutex::new(store::Store::load(config_dir.join("notchfy.json"))),
                 tokens: tokens::Cache::default(),
                 drag_icon: write_drag_icon(&handle),
+                placement: Mutex::new(None),
                 hover_area: hover::Area::default(),
             });
 
@@ -288,15 +316,9 @@ pub fn run() {
 
             let window = create_island(&handle, layout)?;
             platform::configure_window(&window);
-            let area = app.state::<AppState>().hover_area.clone();
-            place(
-                &window,
-                &area,
-                layout.collapsed_width,
-                layout.collapsed_height,
-            )?;
-            hover::watch(window.clone(), area);
-            window.show()?;
+            let state = app.state::<AppState>();
+            show_collapsed(&window, &state)?;
+            hover::watch(window, state.hover_area.clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

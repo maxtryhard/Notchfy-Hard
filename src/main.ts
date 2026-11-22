@@ -11,8 +11,6 @@ import { $, $$, errorText, toast } from "./util";
 type Tab = "home" | "shelf" | "shortcuts" | "ai";
 
 const island = $("#island");
-// Tempo da animação de recolher no CSS; a janela só encolhe depois dela.
-const COLLAPSE_MS = 280;
 let expanded = false;
 let collapseTimer: number | undefined;
 let dropHover = false;
@@ -32,10 +30,33 @@ function applyLayout(l: Layout) {
   document.documentElement.dataset.platform = l.platform;
 }
 
+const TAB_ORDER: Tab[] = ["home", "shelf", "shortcuts", "ai"];
+
+/** Move o fundo destacado para baixo da aba escolhida. */
+function moveTabHighlight(button: HTMLElement) {
+  const highlight = $(".tab-highlight");
+  highlight.style.transform = `translateY(${button.offsetTop}px)`;
+  highlight.style.height = `${button.offsetHeight}px`;
+}
+
 function selectTab(tab: Tab) {
+  const previous = activeTab;
   activeTab = tab;
-  $$<HTMLButtonElement>("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
-  $$("[data-view]").forEach((v) => (v.hidden = v.dataset.view !== tab));
+  $$<HTMLButtonElement>("[data-tab]").forEach((b) => {
+    const selected = b.dataset.tab === tab;
+    b.setAttribute("aria-selected", String(selected));
+    if (selected) moveTabHighlight(b);
+  });
+  $$("[data-view]").forEach((v) => {
+    v.hidden = v.dataset.view !== tab;
+    v.classList.toggle("enter-down", false);
+    v.classList.toggle("enter-up", false);
+  });
+  if (tab !== previous) {
+    // Aba mais abaixo na lista: o conteúdo sobe; mais acima: desce.
+    const down = TAB_ORDER.indexOf(tab) > TAB_ORDER.indexOf(previous);
+    $(`[data-view="${tab}"]`).classList.add(down ? "enter-down" : "enter-up");
+  }
   clearInterval(aiTimer);
   if (tab === "ai") {
     refreshAi();
@@ -43,13 +64,15 @@ function selectTab(tab: Tab) {
   }
 }
 
-async function expand(tab?: Tab) {
+function expand(tab?: Tab) {
   clearTimeout(collapseTimer);
   if (tab) selectTab(tab);
   if (expanded) return;
   expanded = true;
-  await api.setExpanded(true).catch(() => {});
+  // A janela já tem o tamanho do painel: abrir é só trocar o estado no CSS.
+  // O aviso ao Rust só amplia a área em que o mouse conta como "em cima".
   island.dataset.state = "expanded";
+  void api.setExpanded(true);
   setMediaFast(true);
   if (activeTab === "ai") selectTab("ai");
 }
@@ -75,7 +98,7 @@ function collapse() {
   stopEditingShortcuts();
   resetCalendar();
   (document.activeElement as HTMLElement | null)?.blur();
-  setTimeout(() => !expanded && api.setExpanded(false).catch(() => {}), COLLAPSE_MS);
+  void api.setExpanded(false);
 }
 
 function renderData(d: Data) {
@@ -116,6 +139,7 @@ async function main() {
   renderData(await api.data());
 
   $$<HTMLButtonElement>("[data-tab]").forEach((b) => b.addEventListener("click", () => selectTab(b.dataset.tab as Tab)));
+  moveTabHighlight($('[data-tab="home"]'));
   // Clique abre na hora, sem a espera do hover; também reabre depois de um Esc
   // com o mouse parado em cima.
   $(".pill").addEventListener("click", () => expand());

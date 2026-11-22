@@ -68,10 +68,5 @@ pub fn configure_window(window: &tauri::WebviewWindow) {
     }
 }
 
-// No Linux a janela nasce `resizable` (ver `create_island`): no GTK,
-// `resize()` não tem efeito numa janela não redimensionável, que fica presa ao
-// tamanho mínimo do conteúdo. Sem bordas, o usuário continua sem alças para
-// redimensionar. Windows e macOS ficam com `resizable(false)` porque no Windows
-// o Tauri cria bordas de redimensionar em janelas sem moldura.
 #[cfg(not(target_os = "macos"))]
 pub fn configure_window(_window: &tauri::WebviewWindow) {}
