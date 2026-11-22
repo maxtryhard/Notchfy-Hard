@@ -40,6 +40,9 @@ pub struct Data {
     pub shortcuts: Vec<Shortcut>,
     #[serde(default)]
     pub shelf: Vec<ShelfItem>,
+    /// Mostrar na ilha as notificações dos outros apps. Desligado por padrão.
+    #[serde(default)]
+    pub notifications: bool,
 }
 
 pub struct Store {
@@ -54,15 +57,9 @@ impl Store {
         let data = match fs::read_to_string(&path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
                 eprintln!("notchfy: {} inválido ({e}); usando padrões", path.display());
-                Data {
-                    shortcuts: default_shortcuts(),
-                    shelf: Vec::new(),
-                }
+                first_run_data()
             }),
-            Err(_) => Data {
-                shortcuts: default_shortcuts(),
-                shelf: Vec::new(),
-            },
+            Err(_) => first_run_data(),
         };
         Self { path, data }
     }
@@ -120,6 +117,14 @@ fn shortcut(id: &str, name: &str, icon: &str, kind: &str, target: &str) -> Short
         icon: icon.into(),
         kind: kind.into(),
         target: target.into(),
+    }
+}
+
+/// Dados de quem abre o app pela primeira vez: só os atalhos padrão.
+fn first_run_data() -> Data {
+    Data {
+        shortcuts: default_shortcuts(),
+        ..Data::default()
     }
 }
 

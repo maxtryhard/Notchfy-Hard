@@ -1,5 +1,6 @@
 mod hover;
 mod media;
+mod notify;
 mod platform;
 mod store;
 mod tokens;
@@ -8,9 +9,9 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
 
@@ -23,8 +24,8 @@ const PILL_HEIGHT: f64 = 32.0;
 /// esquerda, hora à direita).
 const NOTCH_WING: f64 = 64.0;
 
-/// Geometria da ilha. O frontend usa estes valores para desenhar a pílula
-/// exatamente do tamanho da janela recolhida.
+/// Geometria da ilha. O frontend desenha a pílula e o painel com estes valores,
+/// e o detector de hover usa os mesmos para saber onde o mouse conta.
 #[derive(Clone, Copy, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Layout {
@@ -60,32 +61,106 @@ struct AppState {
     store: Mutex<store::Store>,
     tokens: tokens::Cache,
     drag_icon: Option<String>,
+    placement: Mutex<Option<Placement>>,
     hover_area: hover::Area,
+    notices: Mutex<Option<notify::Listener>>,
 }
 
-/// Centraliza a janela no topo do monitor principal com o tamanho pedido e
-/// avisa o detector de hover da nova área.
-fn place(window: &WebviewWindow, area: &hover::Area, width: f64, height: f64) -> tauri::Result<()> {
+/// Evento com o motivo de a escuta não ter começado, para a ilha mostrar.
+const NOTICE_ERROR_EVENT: &str = "island-notification-error";
+
+/// Liga ou desliga a escuta de notificações e salva a escolha. Se o sistema
+/// recusar, a opção fica desligada e o erro explica o motivo.
+fn set_notifications(app: &AppHandle, on: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let started = if on {
+        let mut listener = state.notices.lock().unwrap();
+        if listener.is_none() {
+            let handle = app.clone();
+            // emit só falha com o app fechando; não há a quem avisar.
+            *listener = Some(notify::start(move |notice| {
+                let _ = handle.emit(notify::NOTICE_EVENT, notice);
+            })?);
+        }
+        true
+    } else {
+        *state.notices.lock().unwrap() = None;
+        false
+    };
+    let mut store = state.store.lock().unwrap();
+    store.data.notifications = started;
+    store.save()
+}
+
+/// Canto superior esquerdo da janela, em pixels lógicos, e a escala do monitor.
+#[derive(Clone, Copy)]
+struct Placement {
+    x: f64,
+    y: f64,
+    scale: f64,
+}
+
+/// A janela tem sempre o tamanho do painel aberto e nunca é redimensionada:
+/// redimensionar a cada hover deixava a abertura lenta e piscando no Windows.
+/// Abrir e fechar é só animação no CSS; fora da área ativa (ver `active_area`)
+/// a janela deixa o mouse passar para o app de baixo.
+fn place(window: &WebviewWindow, layout: Layout) -> tauri::Result<Option<Placement>> {
     let monitor = match window.primary_monitor()? {
         Some(m) => m,
         None => match window.current_monitor()? {
             Some(m) => m,
-            None => return Ok(()),
+            None => return Ok(None),
         },
     };
     let scale = monitor.scale_factor();
     let origin = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
-    let x = origin.x + ((size.width - width) / 2.0).round();
-    window.set_size(LogicalSize::new(width, height))?;
+    let x = origin.x + ((size.width - layout.expanded_width) / 2.0).round();
+    window.set_size(LogicalSize::new(
+        layout.expanded_width,
+        layout.expanded_height,
+    ))?;
     window.set_position(LogicalPosition::new(x, origin.y))?;
-    *area.lock().unwrap() = Some(hover::Rect {
-        left: x * scale,
-        top: origin.y * scale,
-        right: (x + width) * scale,
-        bottom: (origin.y + height) * scale,
-    });
-    Ok(())
+    Ok(Some(Placement {
+        x,
+        y: origin.y,
+        scale,
+    }))
+}
+
+/// Onde o mouse conta como "em cima da ilha": a pílula, com ela fechada; o
+/// painel inteiro, com ela aberta. Ambos ficam centralizados no topo da janela.
+fn active_area(p: Placement, layout: Layout, expanded: bool) -> hover::Rect {
+    let (w, h) = if expanded {
+        (layout.expanded_width, layout.expanded_height)
+    } else {
+        (layout.collapsed_width, layout.collapsed_height)
+    };
+    let left = p.x + (layout.expanded_width - w) / 2.0;
+    hover::Rect {
+        left: left * p.scale,
+        top: p.y * p.scale,
+        right: (left + w) * p.scale,
+        bottom: (p.y + h) * p.scale,
+    }
+}
+
+fn zone(p: Placement, layout: Layout, expanded: bool) -> hover::Zone {
+    hover::Zone {
+        active: active_area(p, layout, expanded),
+        window_left: p.x * p.scale,
+        window_top: p.y * p.scale,
+        scale: p.scale,
+        expanded,
+    }
+}
+
+/// Posiciona a ilha fechada e avisa o detector de hover.
+fn show_collapsed(window: &WebviewWindow, state: &AppState) -> tauri::Result<()> {
+    let placement = place(window, state.layout)?;
+    *state.placement.lock().unwrap() = placement;
+    *state.hover_area.lock().unwrap() = placement.map(|p| zone(p, state.layout, false));
+    window.show()
 }
 
 #[tauri::command]
@@ -94,18 +169,23 @@ fn get_layout(state: State<'_, AppState>) -> Layout {
 }
 
 #[tauri::command]
-fn set_expanded(
-    window: WebviewWindow,
-    state: State<'_, AppState>,
-    expanded: bool,
-) -> Result<(), String> {
-    let l = state.layout;
-    let (w, h) = if expanded {
-        (l.expanded_width, l.expanded_height)
-    } else {
-        (l.collapsed_width, l.collapsed_height)
-    };
-    place(&window, &state.hover_area, w, h).map_err(|e| e.to_string())
+fn set_expanded(state: State<'_, AppState>, expanded: bool) {
+    if let Some(p) = *state.placement.lock().unwrap() {
+        *state.hover_area.lock().unwrap() = Some(zone(p, state.layout, expanded));
+    }
+}
+
+/// Chamado pela interface ao abrir: retoma a escuta se a opção estava ligada.
+#[tauri::command]
+fn notifications_init(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let enabled = state.store.lock().unwrap().data.notifications;
+    if !enabled {
+        return Ok(());
+    }
+    set_notifications(&app, true).inspect_err(|_| {
+        // Falhou ao retomar: desliga para não tentar de novo a cada abertura.
+        let _ = set_notifications(&app, false);
+    })
 }
 
 #[tauri::command]
@@ -204,16 +284,16 @@ fn write_drag_icon(app: &AppHandle) -> Option<String> {
     Some(path.to_string_lossy().into_owned())
 }
 
-/// A janela é criada aqui, e não no tauri.conf.json, porque o `resizable`
-/// precisa variar por sistema (ver `platform::configure_window`).
+/// A janela é criada aqui, e não no tauri.conf.json, porque o tamanho depende
+/// do notch detectado.
 fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow> {
     WebviewWindowBuilder::new(app, ISLAND, WebviewUrl::default())
         .title("Notchfy")
-        .inner_size(layout.collapsed_width, layout.collapsed_height)
+        .inner_size(layout.expanded_width, layout.expanded_height)
         .decorations(false)
         .always_on_top(true)
         .skip_taskbar(true)
-        .resizable(cfg!(target_os = "linux"))
+        .resizable(false)
         .maximizable(false)
         .minimizable(false)
         .shadow(false)
@@ -228,13 +308,36 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mostrar/ocultar Notchfy", true, None::<&str>)?;
+    let enabled = app
+        .state::<AppState>()
+        .store
+        .lock()
+        .unwrap()
+        .data
+        .notifications;
+    let notices = CheckMenuItem::with_id(
+        app,
+        "notifications",
+        "Mostrar notificações na ilha",
+        true,
+        enabled,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &notices, &quit])?;
     let mut tray = TrayIconBuilder::with_id("notchfy")
         .tooltip("Notchfy")
         .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
+            "notifications" => {
+                // O próprio menu já marcou ou desmarcou o item ao ser clicado.
+                let on = notices.is_checked().unwrap_or(false);
+                if let Err(reason) = set_notifications(app, on) {
+                    let _ = notices.set_checked(false);
+                    let _ = app.emit(NOTICE_ERROR_EVENT, reason);
+                }
+            }
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
                     let state = app.state::<AppState>();
@@ -244,9 +347,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                         *state.hover_area.lock().unwrap() = None;
                         w.hide()
                     } else {
-                        let l = state.layout;
-                        place(&w, &state.hover_area, l.collapsed_width, l.collapsed_height)
-                            .and_then(|_| w.show())
+                        show_collapsed(&w, &state)
                     };
                 }
             }
@@ -265,6 +366,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
@@ -279,7 +382,9 @@ pub fn run() {
                 store: Mutex::new(store::Store::load(config_dir.join("notchfy.json"))),
                 tokens: tokens::Cache::default(),
                 drag_icon: write_drag_icon(&handle),
+                placement: Mutex::new(None),
                 hover_area: hover::Area::default(),
+                notices: Mutex::new(None),
             });
 
             if let Err(e) = build_tray(&handle) {
@@ -288,20 +393,15 @@ pub fn run() {
 
             let window = create_island(&handle, layout)?;
             platform::configure_window(&window);
-            let area = app.state::<AppState>().hover_area.clone();
-            place(
-                &window,
-                &area,
-                layout.collapsed_width,
-                layout.collapsed_height,
-            )?;
-            hover::watch(window.clone(), area);
-            window.show()?;
+            let state = app.state::<AppState>();
+            show_collapsed(&window, &state)?;
+            hover::watch(window, state.hover_area.clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_layout,
             set_expanded,
+            notifications_init,
             media_state,
             media_control,
             ai_usage,

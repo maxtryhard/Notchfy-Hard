@@ -7,16 +7,25 @@ const WEEKDAYS = ["D", "S", "T", "Q", "Q", "S", "S"];
 
 let monthOffset = 0;
 
-function renderCalendar(now: Date) {
+/** `direction`: 1 = mês seguinte, -1 = anterior, 0 = sem animação. */
+function renderCalendar(now: Date, direction = 0) {
   const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  $(".cal-title").textContent = monthFmt.format(first);
+  const title = $(".cal-title");
   const grid = $(".cal-grid");
+  title.textContent = monthFmt.format(first);
+  for (const node of [title, grid]) {
+    node.classList.toggle("from-right", false);
+    node.classList.toggle("from-left", false);
+    if (direction !== 0) {
+      void node.offsetWidth; // reinicia a animação quando se clica várias vezes seguidas
+      node.classList.add(direction > 0 ? "from-right" : "from-left");
+    }
+  }
   grid.replaceChildren(...WEEKDAYS.map((d) => el("span", { className: "cal-wd", textContent: d })));
   for (let i = 0; i < first.getDay(); i++) grid.append(el("span"));
   const days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   for (let d = 1; d <= days; d++) {
-    const isToday =
-      monthOffset === 0 && d === now.getDate();
+    const isToday = monthOffset === 0 && d === now.getDate();
     grid.append(el("span", { className: isToday ? "cal-day today" : "cal-day", textContent: String(d) }));
   }
 }
@@ -36,8 +45,9 @@ export function initClock() {
   };
   document.querySelectorAll<HTMLButtonElement>("[data-cal]").forEach((b) =>
     b.addEventListener("click", () => {
-      monthOffset += Number(b.dataset.cal);
-      renderCalendar(new Date());
+      const direction = Number(b.dataset.cal);
+      monthOffset += direction;
+      renderCalendar(new Date(), direction);
     }),
   );
   tick();

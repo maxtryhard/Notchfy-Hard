@@ -52,4 +52,5 @@ export const api = {
   shelfRemove: (path: string | null) => invoke<Data>("shelf_remove", { path }),
   openPath: (path: string, reveal: boolean) => invoke<void>("open_path", { path, reveal }),
   dragIcon: () => invoke<string | null>("drag_icon"),
+  notificationsInit: () => invoke<void>("notifications_init"),
 };

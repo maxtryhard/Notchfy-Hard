@@ -13,6 +13,12 @@ abre um painel com quatro abas:
 | **Atalhos** | Apps favoritos, links, pastas e comandos, editáveis pela própria barra |
 | **IA** | Tokens usados hoje e nos últimos 7 dias no Claude Code e no Codex CLI |
 
+**Notificações na ilha (opcional, desligado por padrão):** ao ligar "Mostrar
+notificações na ilha" no menu do ícone da bandeja, as notificações dos outros
+apps descem na ilha e sobem de novo. Para elas aparecerem só na ilha, desligue
+os avisos do sistema (no Windows, o modo Não incomodar). O app não guarda
+nenhuma notificação.
+
 No MacBook com notch, a pílula se encaixa em volta do recorte: a capa do
 álbum fica à esquerda, a hora à direita e o centro fica sob o notch. Nas outras
 telas ela é uma pílula preta presa ao topo.
@@ -30,6 +36,10 @@ npm run tauri build    # instalador em src-tauri/target/release/bundle/
 
 O app não aparece no Dock nem na barra de tarefas. Para sair, use o ícone na
 bandeja do sistema (barra de menus no Mac) → **Sair**.
+
+**Atualizações:** o app avisa quando há versão nova (ponto verde ao lado da
+hora) e se atualiza com um clique. Como publicar uma versão está em
+[docs/ATUALIZACOES.md](docs/ATUALIZACOES.md).
 
 Cada push roda o workflow `build` no GitHub Actions, que compila e testa nos três
 sistemas e anexa os instaladores (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`) à execução.
@@ -52,6 +62,10 @@ sistemas e anexa os instaladores (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`) à 
   valores são tokens, não custo; o total inclui leituras de cache, que costumam
   ser a maior parte.
 - **Calendário**: mostra o mês, ainda sem eventos da sua agenda.
+- **Notificações na ilha**: no Linux, lidas pelo D-Bus (testado). No Windows,
+  pela API oficial, que segundo a documentação exige o app empacotado (MSIX,
+  como na Microsoft Store); com o instalador `.exe` o Windows pode recusar, e a
+  ilha mostra o código do erro. No macOS ainda não existe.
 - **Assinatura**: os builds não são assinados. No macOS, abra com clique direito →
   Abrir (ou `xattr -dr com.apple.quarantine /Applications/Notchfy.app`); no
   Windows, o SmartScreen pede confirmação.

@@ -29,5 +29,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY2QzQ1NTkzOUM4MURDRTAKUldUZzNJR2NrMVhFWm5KN0d1TzZVVkRWM3RaUGlzeWtpZGwvei9CY3lLRlM1ZWdVcENCYzBUK2EK",
+      "endpoints": [
+        "https://github.com/maxtryhard/Notify-Releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -11,8 +11,46 @@
       <!-- Pílula recolhida: no Mac com notch, o centro fica vazio sobre o recorte. -->
       <div class="pill" aria-hidden="true">
         <div class="pill-side pill-left">
-          <img class="pill-art" alt="" hidden />
-          <span class="pill-dot"></span>
+          <!-- Mascote: os olhos seguem o cursor (src/mascot.ts). -->
+          <svg class="mascot" viewBox="0 0 24 24">
+            <defs>
+              <!-- Corpo iluminado do alto à esquerda: núcleo quase branco, como luz acesa. -->
+              <radialGradient id="mascot-body" cx="0.36" cy="0.3" r="0.78">
+                <stop offset="0" stop-color="#f2fff9" />
+                <stop offset="0.2" stop-color="#9dffd6" />
+                <stop offset="0.52" stop-color="#2ff5a6" />
+                <stop offset="0.82" stop-color="#0fc77f" />
+                <stop offset="1" stop-color="#046a43" />
+              </radialGradient>
+              <!-- Luz refletida na borda oposta, embaixo à direita. -->
+              <radialGradient id="mascot-rim" cx="0.5" cy="0.5" r="0.5" fx="0.32" fy="0.28">
+                <stop offset="0.78" stop-color="#b4ffe0" stop-opacity="0" />
+                <stop offset="1" stop-color="#b4ffe0" stop-opacity="0.55" />
+              </radialGradient>
+              <!-- Reflexo de luz com borda suave. -->
+              <radialGradient id="mascot-spec" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stop-color="#ffffff" stop-opacity="0.95" />
+                <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+              </radialGradient>
+              <linearGradient id="mascot-iris" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#031c13" />
+                <stop offset="1" stop-color="#0b3526" />
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="11" fill="url(#mascot-body)" />
+            <circle cx="12" cy="12" r="11" fill="url(#mascot-rim)" />
+            <ellipse cx="8" cy="6.4" rx="3" ry="1.9" fill="url(#mascot-spec)" transform="rotate(-32 8 6.4)" />
+            <g class="mascot-eyes">
+              <g class="mascot-eye">
+                <rect x="7.3" y="8.9" width="3.7" height="6.4" rx="1.85" fill="url(#mascot-iris)" />
+                <circle class="mascot-glint" cx="8.55" cy="10.4" r="0.85" fill="#fff" />
+              </g>
+              <g class="mascot-eye">
+                <rect x="13" y="8.9" width="3.7" height="6.4" rx="1.85" fill="url(#mascot-iris)" />
+                <circle class="mascot-glint" cx="14.25" cy="10.4" r="0.85" fill="#fff" />
+              </g>
+            </g>
+          </svg>
         </div>
         <div class="pill-center"><span class="pill-title"></span></div>
         <div class="pill-side pill-right">
@@ -22,25 +60,33 @@
       </div>
 
       <div class="panel">
-        <nav class="tabs" role="tablist">
-          <button role="tab" data-tab="home" aria-selected="true" title="Início">
-            <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            <span>Início</span>
+        <div class="side">
+          <nav class="tabs" role="tablist">
+            <span class="tab-highlight" aria-hidden="true"></span>
+            <button role="tab" data-tab="home" aria-selected="true" title="Início">
+              <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <span>Início</span>
+            </button>
+            <button role="tab" data-tab="shelf" title="Prateleira">
+              <svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+              <span>Prateleira</span>
+              <em class="badge" data-badge="shelf" hidden></em>
+            </button>
+            <button role="tab" data-tab="shortcuts" title="Atalhos">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+              <span>Atalhos</span>
+            </button>
+            <button role="tab" data-tab="ai" title="Uso de IA">
+              <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
+              <span>IA</span>
+            </button>
+          </nav>
+          <!-- Aparece só quando há versão nova (src/updates.ts). -->
+          <button class="update-button" type="button" hidden>
+            <svg viewBox="0 0 24 24"><path d="M12 4v11" /><path d="M7 10l5 5 5-5" /><path d="M5 20h14" /></svg>
+            <span class="update-label">Atualizar</span>
           </button>
-          <button role="tab" data-tab="shelf" title="Prateleira">
-            <svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
-            <span>Prateleira</span>
-            <em class="badge" data-badge="shelf" hidden></em>
-          </button>
-          <button role="tab" data-tab="shortcuts" title="Atalhos">
-            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-            <span>Atalhos</span>
-          </button>
-          <button role="tab" data-tab="ai" title="Uso de IA">
-            <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-6"/></svg>
-            <span>IA</span>
-          </button>
-        </nav>
+        </div>
 
         <section class="view" data-view="home">
           <div class="media card">
@@ -109,6 +155,15 @@
           </div>
           <div class="ai-grid"></div>
         </section>
+      </div>
+      <!-- Notificação de outro app: a ilha desce, mostra e sobe (src/notices.ts). -->
+      <div class="peek" role="status">
+        <span class="peek-badge" aria-hidden="true"></span>
+        <div class="peek-text">
+          <span class="peek-app"></span>
+          <strong class="peek-title"></strong>
+          <span class="peek-body"></span>
+        </div>
       </div>
       <div class="toast" role="status" hidden></div>
     </div>
