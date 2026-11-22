@@ -7,11 +7,33 @@ on:
   workflow_dispatch:
 
 env:
-  RELEASES_OWNER: maxtryhard
-  RELEASES_REPO: Notify-Releases
+  RELEASES: maxtryhard/Notify-Releases
 
 jobs:
+  # Cria a versão uma vez só, como rascunho. Se cada sistema tentasse criar a
+  # sua, rodando ao mesmo tempo, poderiam sair rascunhos duplicados.
+  create:
+    runs-on: ubuntu-latest
+    outputs:
+      id: ${{ steps.release.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          # A tag nasce no main do repositório de versões: o commit deste
+          # repositório não existe lá.
+          id=$(gh api "repos/$RELEASES/releases" \
+            -f tag_name="v$version" -f target_commitish=main \
+            -f name="Notify v$version" -F draft=true \
+            -f body="Baixe o instalador do seu sistema abaixo. Quem já tem o app recebe esta versão pelo botão Atualizar." \
+            --jq .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: create
     strategy:
       fail-fast: true
       matrix:
@@ -51,30 +73,32 @@ jobs:
 
       - run: npm ci
 
-      # Sobe como rascunho: o app só enxerga a versão quando o job "publish"
-      # publicar, depois que os três sistemas terminarem.
+      # Envia os instaladores, as assinaturas e a parte deste sistema no
+      # latest.json para o rascunho criado acima.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          owner: ${{ env.RELEASES_OWNER }}
-          repo: ${{ env.RELEASES_REPO }}
-          tagName: v__VERSION__
-          releaseName: Notify v__VERSION__
-          releaseBody: Baixe o instalador do seu sistema abaixo. Quem já tem o app recebe esta versão pelo botão Atualizar.
-          releaseDraft: true
+          owner: maxtryhard
+          repo: Notify-Releases
+          releaseId: ${{ needs.create.outputs.id }}
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
 
   publish:
-    needs: build
+    needs: [create, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Publicar a versão
+      - name: Conferir e publicar
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          ID: ${{ needs.create.outputs.id }}
         run: |
-          version=$(jq -r .version src-tauri/tauri.conf.json)
-          gh release edit "v$version" --repo "$RELEASES_OWNER/$RELEASES_REPO" --draft=false --latest
+          # Os três sistemas escrevem no mesmo latest.json; se algum se perdeu,
+          # publicar deixaria quem usa esse sistema sem atualização.
+          asset=$(gh api "repos/$RELEASES/releases/$ID" --jq '.assets[] | select(.name == "latest.json") | .id')
+          gh api -H "Accept: application/octet-stream" "repos/$RELEASES/releases/assets/$asset" > latest.json
+          jq -e '.platforms | has("windows-x86_64") and has("linux-x86_64") and has("darwin-aarch64") and has("darwin-x86_64")' latest.json \
+            || { echo "latest.json incompleto:"; jq '.platforms | keys' latest.json; exit 1; }
+          gh api -X PATCH "repos/$RELEASES/releases/$ID" -F draft=false -f make_latest=true --jq .html_url
