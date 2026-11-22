@@ -6,6 +6,37 @@ let fetchedAt = 0;
 let timer: number | undefined;
 let fast = false;
 
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+/** Troca o título da pílula com movimento: o antigo sai subindo, o novo entra
+ *  vindo de baixo. Só anima quando o texto muda de verdade (a consulta ao
+ *  player se repete a cada segundo com o mesmo título). */
+async function swapText(node: HTMLElement, text: string) {
+  if (node.textContent === text || node.dataset.next === text) return;
+  node.dataset.next = text;
+  if (!reduceMotion.matches && node.textContent) {
+    await node.animate(
+      [
+        { opacity: 1, transform: "none" },
+        { opacity: 0, transform: "translateY(-7px)" },
+      ],
+      { duration: 160, easing: "ease-in" },
+    ).finished;
+  }
+  // Se outra troca começou durante a saída, ela é que vale.
+  if (node.dataset.next !== text) return;
+  node.textContent = text;
+  if (!reduceMotion.matches && text) {
+    node.animate(
+      [
+        { opacity: 0, transform: "translateY(7px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 240, easing: "cubic-bezier(0.32, 1.25, 0.4, 1)" },
+    );
+  }
+}
+
 function setArt(img: HTMLImageElement, src: string | null) {
   if (src) {
     if (img.getAttribute("src") !== src) img.src = src;
@@ -42,7 +73,7 @@ function render(m: MediaState) {
   $(".media-player").textContent = m.available ? m.player : "";
   $(".media-title").textContent = m.available ? m.title || "Sem título" : "Nada tocando";
   $(".media-artist").textContent = m.available ? m.artist || m.album : "Abra um player de música";
-  $(".pill-title").textContent = m.available ? m.title : "";
+  void swapText($(".pill-title"), m.available ? m.title : "");
   setArt($<HTMLImageElement>(".art"), m.art);
   $(".eq").hidden = !m.playing;
   $(".i-play").toggleAttribute("hidden", m.playing);
