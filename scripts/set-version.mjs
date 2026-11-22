@@ -20,4 +20,12 @@ json("src-tauri/tauri.conf.json");
 const cargo = readFileSync("src-tauri/Cargo.toml", "utf8");
 writeFileSync("src-tauri/Cargo.toml", cargo.replace(/^version = ".*"$/m, `version = "${version}"`));
 
+// O Cargo.lock também guarda a versão do app; desatualizado, ele muda sozinho
+// no próximo build e deixa o repositório com uma alteração solta.
+const lock = readFileSync("src-tauri/Cargo.lock", "utf8");
+writeFileSync(
+  "src-tauri/Cargo.lock",
+  lock.replace(/(name = "notchfy"\nversion = )".*"/, `$1"${version}"`),
+);
+
 console.log(`Versão ${version}. Agora: commit, push e "Publicar versão" no GitHub Actions.`);
