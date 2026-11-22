@@ -1,17 +1,24 @@
 import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
-import { $, errorText } from "./util";
+import { $, el, errorText, toast } from "./util";
 
 type Notice = { app: string; title: string; body: string };
+type Received = Notice & { at: number };
 
 /** Quanto tempo cada notificação fica à mostra. */
 const SHOW_MS = 4500;
 /** Pausa entre uma notificação e a próxima, para a ilha subir e descer de novo. */
 const GAP_MS = 450;
 
+/** Histórico só na memória, como a ilha promete: nada é gravado em disco. */
+const INBOX_LIMIT = 50;
+
 const island = $("#island");
 const queue: Notice[] = [];
+const inbox: Received[] = [];
+let unread = 0;
 let showing = false;
+let enabled = false;
 
 /** A ilha "desce" com a notificação e sobe de novo, como no iPhone. Com o
  *  painel aberto, espera ele fechar para não atrapalhar quem está usando. */
@@ -43,11 +50,92 @@ function enqueue(notice: Notice) {
   showNext();
 }
 
-const unavailable = (reason: string): Notice => ({ app: "Notify", title: "Notificações indisponíveis", body: reason });
+const agoFmt = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
+
+function ago(at: number) {
+  const minutes = Math.round((at - Date.now()) / 60000);
+  if (minutes === 0) return "agora";
+  if (Math.abs(minutes) < 60) return agoFmt.format(minutes, "minute");
+  return agoFmt.format(Math.round(minutes / 60), "hour");
+}
+
+function renderInbox() {
+  $(".inbox-list").replaceChildren(
+    ...inbox.map((n) =>
+      el(
+        "li",
+        { className: "inbox-item" },
+        el("span", { className: "peek-badge", textContent: (n.app.trim()[0] ?? "•").toUpperCase() }),
+        el(
+          "div",
+          { className: "inbox-text" },
+          el("div", { className: "inbox-meta" }, el("span", { textContent: n.app }), el("time", { textContent: ago(n.at) })),
+          el("strong", { textContent: n.title }),
+          el("span", { className: "inbox-body", textContent: n.body }),
+        ),
+      ),
+    ),
+  );
+  $(".inbox-empty").hidden = inbox.length > 0;
+  $(".inbox-empty-text").textContent = enabled
+    ? "Nenhuma notificação desde que o app abriu."
+    : "Ligue “Mostrar na ilha” para as notificações dos seus apps aparecerem aqui.";
+  $<HTMLButtonElement>("[data-action=inbox-clear]").hidden = inbox.length === 0;
+  const badge = $("[data-badge=inbox]");
+  badge.textContent = String(unread);
+  badge.hidden = unread === 0;
+}
+
+function receive(notice: Notice) {
+  inbox.unshift({ ...notice, at: Date.now() });
+  inbox.length = Math.min(inbox.length, INBOX_LIMIT);
+  // Com a aba aberta a pessoa já está vendo a notificação na lista: nem conta
+  // como não lida, nem faz a ilha descer depois para mostrar de novo.
+  const watching = island.dataset.state === "expanded" && !$('[data-view="inbox"]').hidden;
+  if (!watching) {
+    unread += 1;
+    enqueue(notice);
+  }
+  renderInbox();
+}
+
+/** Abrir a aba zera o contador e atualiza o "há 5 min" de cada item. */
+export function openInbox() {
+  unread = 0;
+  renderInbox();
+}
+
+async function toggle(input: HTMLInputElement) {
+  try {
+    await api.setNotificationsEnabled(input.checked);
+    enabled = input.checked;
+  } catch (e) {
+    input.checked = false;
+    enabled = false;
+    toast(errorText(e));
+  }
+  renderInbox();
+}
+
+/** Aviso sobre a própria escuta (ligou, foi recusada, parou). */
+const status = (title: string, body: string): Notice => ({ app: "Notify", title, body });
 
 export async function initNotices() {
-  await listen<Notice>("island-notification", (event) => enqueue(event.payload));
-  await listen<string>("island-notification-error", (event) => enqueue(unavailable(event.payload)));
+  const input = $<HTMLInputElement>(".notices-toggle");
+  input.addEventListener("change", () => toggle(input));
+  $("[data-action=inbox-clear]").addEventListener("click", () => {
+    inbox.length = 0;
+    renderInbox();
+  });
+  await listen<Notice>("island-notification", (event) => receive(event.payload));
+  await listen<{ title: string; body: string }>("island-notification-status", (event) =>
+    enqueue(status(event.payload.title, event.payload.body)),
+  );
   // Retoma a escuta se ela estava ligada; se o sistema recusar, avisa por que.
-  await api.notificationsInit().catch((e) => enqueue(unavailable(errorText(e))));
+  enabled = await api.notificationsInit().catch((e) => {
+    enqueue(status("Notificações indisponíveis", errorText(e)));
+    return false;
+  });
+  input.checked = enabled;
+  renderInbox();
 }

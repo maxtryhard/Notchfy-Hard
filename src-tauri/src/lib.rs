@@ -9,7 +9,7 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem},
+    menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
@@ -17,7 +17,7 @@ use tauri::{
 
 const ISLAND: &str = "island";
 const EXPANDED_WIDTH: f64 = 680.0;
-const EXPANDED_HEIGHT: f64 = 300.0;
+const EXPANDED_HEIGHT: f64 = 320.0;
 const PILL_WIDTH: f64 = 220.0;
 const PILL_HEIGHT: f64 = 32.0;
 /// Largura de cada "asa" que aparece ao lado do notch físico (capa do álbum à
@@ -66,8 +66,20 @@ struct AppState {
     notices: Mutex<Option<notify::Listener>>,
 }
 
-/// Evento com o motivo de a escuta não ter começado, para a ilha mostrar.
-const NOTICE_ERROR_EVENT: &str = "island-notification-error";
+/// Avisos sobre a própria escuta (ligou, foi recusada, parou), para a ilha
+/// mostrar. Não entram na caixa de notificações.
+const NOTICE_STATUS_EVENT: &str = "island-notification-status";
+
+#[derive(Clone, Serialize)]
+struct NoticeStatus {
+    title: &'static str,
+    body: String,
+}
+
+fn emit_notice_status(app: &AppHandle, title: &'static str, body: String) {
+    // emit só falha com o app fechando; não há a quem avisar.
+    let _ = app.emit(NOTICE_STATUS_EVENT, NoticeStatus { title, body });
+}
 
 /// Liga ou desliga a escuta de notificações e salva a escolha. Se o sistema
 /// recusar, a opção fica desligada e o erro explica o motivo.
@@ -76,11 +88,14 @@ fn set_notifications(app: &AppHandle, on: bool) -> Result<(), String> {
     let started = if on {
         let mut listener = state.notices.lock().unwrap();
         if listener.is_none() {
-            let handle = app.clone();
-            // emit só falha com o app fechando; não há a quem avisar.
-            *listener = Some(notify::start(move |notice| {
-                let _ = handle.emit(notify::NOTICE_EVENT, notice);
-            })?);
+            let (on_notice, on_problem) = (app.clone(), app.clone());
+            *listener = Some(notify::start(
+                move |notice| {
+                    // emit só falha com o app fechando; não há a quem avisar.
+                    let _ = on_notice.emit(notify::NOTICE_EVENT, notice);
+                },
+                move |reason| emit_notice_status(&on_problem, "Notificações pararam", reason),
+            )?);
         }
         true
     } else {
@@ -175,16 +190,28 @@ fn set_expanded(state: State<'_, AppState>, expanded: bool) {
     }
 }
 
-/// Chamado pela interface ao abrir: retoma a escuta se a opção estava ligada.
+/// Chamado pela interface ao abrir: retoma a escuta se a opção estava ligada
+/// e devolve se ela ficou ligada, para o interruptor começar no estado certo.
 #[tauri::command]
-fn notifications_init(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+fn notifications_init(app: AppHandle, state: State<'_, AppState>) -> Result<bool, String> {
     let enabled = state.store.lock().unwrap().data.notifications;
-    if !enabled {
-        return Ok(());
+    if enabled {
+        enable_notifications(&app, true)?;
     }
-    set_notifications(&app, true).inspect_err(|_| {
-        // Falhou ao retomar: desliga para não tentar de novo a cada abertura.
-        let _ = set_notifications(&app, false);
+    Ok(enabled)
+}
+
+/// O interruptor "Mostrar na ilha" da aba Notificações.
+#[tauri::command]
+fn set_notifications_enabled(app: AppHandle, on: bool) -> Result<(), String> {
+    enable_notifications(&app, on)
+}
+
+/// Se ligar falhar, a opção fica desligada: não adianta tentar de novo a cada
+/// abertura, e o erro volta para a tela explicar o motivo.
+fn enable_notifications(app: &AppHandle, on: bool) -> Result<(), String> {
+    set_notifications(app, on).inspect_err(|_| {
+        let _ = set_notifications(app, false);
     })
 }
 
@@ -308,36 +335,13 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mostrar/ocultar Notchfy", true, None::<&str>)?;
-    let enabled = app
-        .state::<AppState>()
-        .store
-        .lock()
-        .unwrap()
-        .data
-        .notifications;
-    let notices = CheckMenuItem::with_id(
-        app,
-        "notifications",
-        "Mostrar notificações na ilha",
-        true,
-        enabled,
-        None::<&str>,
-    )?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &notices, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &quit])?;
     let mut tray = TrayIconBuilder::with_id("notchfy")
         .tooltip("Notchfy")
         .menu(&menu)
-        .on_menu_event(move |app, event| match event.id.as_ref() {
+        .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
-            "notifications" => {
-                // O próprio menu já marcou ou desmarcou o item ao ser clicado.
-                let on = notices.is_checked().unwrap_or(false);
-                if let Err(reason) = set_notifications(app, on) {
-                    let _ = notices.set_checked(false);
-                    let _ = app.emit(NOTICE_ERROR_EVENT, reason);
-                }
-            }
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
                     let state = app.state::<AppState>();
@@ -402,6 +406,7 @@ pub fn run() {
             get_layout,
             set_expanded,
             notifications_init,
+            set_notifications_enabled,
             media_state,
             media_control,
             ai_usage,

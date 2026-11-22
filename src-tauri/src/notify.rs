@@ -37,10 +37,14 @@ impl Drop for Listener {
 }
 
 /// Começa a escutar. O erro explica por que não foi possível (ex.: o Windows
-/// recusou o acesso) e é mostrado ao usuário.
-pub fn start(on_notice: impl Fn(Notice) + Send + 'static) -> Result<Listener, String> {
+/// recusou o acesso) e é mostrado ao usuário. `on_problem` recebe falhas que
+/// só aparecem depois de ligada, uma vez cada, para também chegarem à tela.
+pub fn start(
+    on_notice: impl Fn(Notice) + Send + 'static,
+    on_problem: impl Fn(String) + Send + 'static,
+) -> Result<Listener, String> {
     let stop = Arc::new(AtomicBool::new(false));
-    imp::start(on_notice, stop.clone())?;
+    imp::start(on_notice, on_problem, stop.clone())?;
     Ok(Listener { stop })
 }
 
@@ -87,6 +91,7 @@ mod imp {
 
     pub fn start(
         on_notice: impl Fn(Notice) + Send + 'static,
+        on_problem: impl Fn(String) + Send + 'static,
         stop: Arc<AtomicBool>,
     ) -> Result<(), String> {
         let conn =
@@ -118,8 +123,8 @@ mod imp {
         );
         thread::spawn(move || {
             while !stop.load(Ordering::Relaxed) {
-                // Erro aqui é o D-Bus caindo (fim da sessão): não há o que escutar.
-                if conn.process(Duration::from_millis(500)).is_err() {
+                if let Err(e) = conn.process(Duration::from_millis(500)) {
+                    on_problem(format!("A conexão com o D-Bus caiu ({e})."));
                     break;
                 }
             }
@@ -164,6 +169,7 @@ mod imp {
 
     pub fn start(
         on_notice: impl Fn(Notice) + Send + 'static,
+        on_problem: impl Fn(String) + Send + 'static,
         stop: Arc<AtomicBool>,
     ) -> Result<(), String> {
         // O código do erro vem primeiro para nunca ser cortado na tela: com ele
@@ -190,11 +196,23 @@ mod imp {
         thread::spawn(move || {
             // As que já estavam na central não são novidade: só marca como vistas.
             let mut seen: Option<HashSet<u32>> = None;
+            // Avisa uma vez por sequência de falhas, não a cada consulta.
+            let mut failing = false;
             while !stop.load(Ordering::Relaxed) {
-                if let Ok(list) = listener
+                let list = listener
                     .GetNotificationsAsync(NotificationKinds::Toast)
-                    .and_then(|op| op.join())
-                {
+                    .and_then(|op| op.join());
+                if let Err(e) = &list {
+                    if !failing {
+                        on_problem(format!(
+                            "Código {:#010x}: o Windows não entregou as notificações a este instalador.",
+                            e.code().0
+                        ));
+                    }
+                    failing = true;
+                }
+                if let Ok(list) = list {
+                    failing = false;
                     let current: Vec<UserNotification> = list.into_iter().collect();
                     let ids: HashSet<u32> = current.iter().filter_map(|n| n.Id().ok()).collect();
                     if let Some(known) = &seen {
@@ -219,7 +237,11 @@ mod imp {
 mod imp {
     use super::*;
 
-    pub fn start(_: impl Fn(Notice) + Send + 'static, _: Arc<AtomicBool>) -> Result<(), String> {
+    pub fn start(
+        _: impl Fn(Notice) + Send + 'static,
+        _: impl Fn(String) + Send + 'static,
+        _: Arc<AtomicBool>,
+    ) -> Result<(), String> {
         Err("Notificações na ilha ainda não funcionam no macOS.".into())
     }
 }

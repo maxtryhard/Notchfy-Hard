@@ -5,13 +5,13 @@ import { initAi, refreshAi } from "./ai";
 import { initClock, resetCalendar } from "./clock";
 import { initMascot } from "./mascot";
 import { initMedia, setMediaFast } from "./media";
-import { initNotices } from "./notices";
+import { initNotices, openInbox } from "./notices";
 import { initShelf, isDraggingOut, renderShelf } from "./shelf";
 import { initShortcuts, renderShortcuts, stopEditingShortcuts } from "./shortcuts";
 import { initUpdates } from "./updates";
 import { $, $$, errorText, toast } from "./util";
 
-type Tab = "home" | "shelf" | "shortcuts" | "ai";
+type Tab = "home" | "inbox" | "shelf" | "shortcuts" | "ai";
 
 const island = $("#island");
 let expanded = false;
@@ -35,7 +35,7 @@ function applyLayout(l: Layout) {
   document.documentElement.dataset.platform = l.platform;
 }
 
-const TAB_ORDER: Tab[] = ["home", "shelf", "shortcuts", "ai"];
+const TAB_ORDER: Tab[] = ["home", "inbox", "shelf", "shortcuts", "ai"];
 
 /** Move o fundo destacado para baixo da aba escolhida. */
 function moveTabHighlight(button: HTMLElement) {
@@ -63,6 +63,7 @@ function selectTab(tab: Tab) {
     $(`[data-view="${tab}"]`).classList.add(down ? "enter-down" : "enter-up");
   }
   clearInterval(aiTimer);
+  if (tab === "inbox") openInbox();
   if (tab === "ai") {
     refreshAi();
     aiTimer = window.setInterval(refreshAi, 60_000);

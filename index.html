@@ -67,6 +67,11 @@
               <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
               <span>Início</span>
             </button>
+            <button role="tab" data-tab="inbox" title="Notificações">
+              <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+              <span>Avisos</span>
+              <em class="badge" data-badge="inbox" hidden></em>
+            </button>
             <button role="tab" data-tab="shelf" title="Prateleira">
               <svg viewBox="0 0 24 24"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
               <span>Prateleira</span>
@@ -111,6 +116,25 @@
               <div class="cal-head"><button data-cal="-1" title="Mês anterior">‹</button><span class="cal-title"></span><button data-cal="1" title="Próximo mês">›</button></div>
               <div class="cal-grid"></div>
             </div>
+          </div>
+        </section>
+
+        <!-- Notificações dos outros apps (src/notices.ts). Ficam só na memória:
+             fechar o app apaga o histórico. -->
+        <section class="view" data-view="inbox" hidden>
+          <div class="view-head">
+            <span class="view-title">Notificações</span>
+            <label class="switch">
+              <input type="checkbox" class="notices-toggle" />
+              <span class="switch-track" aria-hidden="true"></span>
+              Mostrar na ilha
+            </label>
+            <button class="ghost" data-action="inbox-clear">Limpar</button>
+          </div>
+          <ul class="inbox-list"></ul>
+          <div class="empty inbox-empty">
+            <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>
+            <p class="inbox-empty-text"></p>
           </div>
         </section>
 
