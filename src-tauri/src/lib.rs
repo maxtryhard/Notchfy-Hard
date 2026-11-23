@@ -1,6 +1,8 @@
 mod agent_events;
 mod agent_setup;
 mod battery;
+#[cfg(any(windows, test))]
+mod fullscreen;
 mod hover;
 mod media;
 mod notify;
@@ -347,6 +349,28 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
         .build()
 }
 
+/// Confere a cada segundo se há algo em tela cheia e esconde ou mostra a ilha.
+#[cfg(windows)]
+fn watch_fullscreen(window: WebviewWindow) {
+    std::thread::spawn(move || {
+        let mut tracker = fullscreen::Tracker::default();
+        loop {
+            let visible = window.is_visible().unwrap_or(false);
+            let state = window.state::<AppState>();
+            // Falhas aqui só acontecem com a janela fechando; o próximo ciclo tenta de novo.
+            let _ = match tracker.next(fullscreen::is_fullscreen(), visible) {
+                Some(fullscreen::Action::Hide) => {
+                    *state.hover_area.lock().unwrap() = None;
+                    window.hide()
+                }
+                Some(fullscreen::Action::Show) => show_collapsed(&window, &state),
+                None => Ok(()),
+            };
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+}
+
 /// Estado lido do sistema (entrada de login), não de uma cópia nossa: se a
 /// pessoa remover pelo sistema, o menu acompanha. Sem leitura, mostra desligado.
 fn autostart_enabled(app: &AppHandle) -> bool {
@@ -467,6 +491,8 @@ pub fn run() {
             platform::configure_window(&window);
             let state = app.state::<AppState>();
             show_collapsed(&window, &state)?;
+            #[cfg(windows)]
+            watch_fullscreen(window.clone());
             hover::watch(window, state.hover_area.clone());
             let agents = handle.clone();
             agent_events::watch(move |notice| {

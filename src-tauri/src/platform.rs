@@ -58,10 +58,11 @@ pub fn configure_window(window: &tauri::WebviewWindow) {
     unsafe {
         let ns_window: &NSWindow = &*(ptr as *const NSWindow);
         ns_window.setLevel(NSMainMenuWindowLevel + 3);
+        // Sem `FullScreenAuxiliary`: a janela não entra nos espaços de tela
+        // cheia, então a ilha some em vídeos, jogos e apresentações.
         ns_window.setCollectionBehavior(
             NSWindowCollectionBehavior::CanJoinAllSpaces
                 | NSWindowCollectionBehavior::Stationary
-                | NSWindowCollectionBehavior::FullScreenAuxiliary
                 | NSWindowCollectionBehavior::IgnoresCycle,
         );
         ns_window.setHasShadow(false);

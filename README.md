@@ -94,6 +94,10 @@ sistemas e anexa os instaladores (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`) à 
   pela API oficial, que segundo a documentação exige o app empacotado (MSIX,
   como na Microsoft Store); com o instalador `.exe` o Windows pode recusar, e a
   ilha mostra o código do erro. No macOS ainda não existe.
+- **Tela cheia**: com um vídeo, jogo ou apresentação em tela cheia, a ilha some
+  e volta quando a tela cheia acaba. No Windows vale para qualquer monitor (a
+  API do sistema não diz qual). No macOS a ilha não aparece em nenhum app em
+  tela cheia. No Linux não há detecção: depende do gerenciador de janelas.
 - **Assinatura**: os builds não são assinados. No macOS, abra com clique direito →
   Abrir (ou `xattr -dr com.apple.quarantine /Applications/Notchfy.app`); no
   Windows, o SmartScreen pede confirmação.
@@ -119,6 +123,7 @@ src-tauri/src/       Backend (Rust)
   agent_events.rs    Avisos do Claude Code/Codex (modo --hook e leitura da fila)
   agent_setup.rs     Liga/desliga os hooks nos arquivos de config dos CLIs
   battery.rs         Avisos de bateria
+  fullscreen.rs      Esconde a ilha em tela cheia (Windows)
   notify.rs          Notificações dos outros apps (D-Bus, Windows)
   hover.rs           Detecta o mouse sobre a ilha
   store.rs           Atalhos e prateleira salvos em JSON
