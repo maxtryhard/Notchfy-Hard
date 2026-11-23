@@ -1,0 +1,20 @@
+name: Ideia
+description: Sugestão de função ou melhoria.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como poderia funcionar
+  - type: checkboxes
+    id: privacidade
+    attributes:
+      label: Privacidade
+      options:
+        - label: Funciona sem mandar dados para fora da máquina

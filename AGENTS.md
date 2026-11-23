@@ -92,6 +92,13 @@ item encontrado.
 - **Verificação:** abrir no computador e no celular, conferir o console sem
   erros e sem rolagem horizontal, e medir o peso da primeira visita.
 
-## 8. Commits
+## 8. Commits e issues
 
 Um assunto por commit. A mensagem diz o que mudou e por quê.
+
+- Todo PR cita a issue que resolve (`Fecha #12` no topo, como no modelo de PR).
+  Mudança sem issue? Abra uma antes, mesmo curta.
+- Achou um problema que não vai corrigir agora (inclusive na revisão da seção
+  6)? Abra uma issue em vez de deixar só na conversa ou num comentário.
+- Build quebrado na `main` abre sozinho uma issue `ci-falhou`, que fecha
+  quando volta a passar. Ela tem prioridade sobre trabalho novo.
