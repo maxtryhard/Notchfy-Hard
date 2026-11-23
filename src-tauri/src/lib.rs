@@ -1,3 +1,5 @@
+mod agent_events;
+mod agent_setup;
 mod battery;
 mod hover;
 mod media;
@@ -299,6 +301,16 @@ fn open_path(app: AppHandle, path: String, reveal: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn agent_hooks_status() -> agent_setup::Status {
+    agent_setup::status()
+}
+
+#[tauri::command]
+fn set_agent_hooks(source: agent_events::Source, on: bool) -> Result<(), String> {
+    agent_setup::set(source, on)
+}
+
+#[tauri::command]
 fn drag_icon(state: State<'_, AppState>) -> Option<String> {
     state.drag_icon.clone()
 }
@@ -366,6 +378,11 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub fn run() {
+    // Chamado por um hook do Claude Code ou do Codex: grava o aviso e sai,
+    // sem abrir janela nem tocar no app que já está aberto.
+    if agent_events::handle_hook_invocation() {
+        return;
+    }
     platform::prepare_environment();
 
     tauri::Builder::default()
@@ -409,6 +426,11 @@ pub fn run() {
             let state = app.state::<AppState>();
             show_collapsed(&window, &state)?;
             hover::watch(window, state.hover_area.clone());
+            let agents = handle.clone();
+            agent_events::watch(move |notice| {
+                // emit só falha com o app fechando; não há a quem avisar.
+                let _ = agents.emit(agent_events::AGENT_EVENT, notice);
+            });
             battery::watch(move |alert| {
                 // emit só falha com o app fechando; não há a quem avisar.
                 let _ = handle.emit(battery::BATTERY_EVENT, alert);
@@ -430,6 +452,8 @@ pub fn run() {
             shelf_remove,
             open_path,
             drag_icon,
+            agent_hooks_status,
+            set_agent_hooks,
         ])
         .run(tauri::generate_context!())
         .expect("falha ao iniciar o Notchfy");

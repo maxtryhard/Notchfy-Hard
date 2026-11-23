@@ -4,20 +4,38 @@ Uma barra interativa que fica no topo da tela, para macOS, Windows e Linux.
 
 ![A ilha abrindo, trocando de aba e recolhendo](docs/media/animacao.gif)
 Recolhida, ela é uma pílula com a hora e o que está tocando. Ao passar o mouse,
-abre um painel com quatro abas:
+abre um painel com cinco abas:
 
 | Aba | O que faz |
 | --- | --- |
 | **Início** | Música tocando agora (capa, progresso, tocar/pausar/avançar/voltar), relógio e calendário do mês |
+| **Avisos** | Notificações recebidas desde que o app abriu, com contador de não lidas |
 | **Prateleira** | Solte arquivos na ilha para guardar; arraste de volta para qualquer app; clique para abrir |
 | **Atalhos** | Apps favoritos, links, pastas e comandos, editáveis pela própria barra |
 | **IA** | Tokens usados hoje e nos últimos 7 dias no Claude Code e no Codex CLI |
 
 **Notificações na ilha (opcional, desligado por padrão):** ao ligar "Mostrar
-notificações na ilha" no menu do ícone da bandeja, as notificações dos outros
-apps descem na ilha e sobem de novo. Para elas aparecerem só na ilha, desligue
-os avisos do sistema (no Windows, o modo Não incomodar). O app não guarda
-nenhuma notificação.
+na ilha" na aba Avisos, as notificações dos outros apps descem na ilha e sobem
+de novo. Para elas aparecerem só na ilha, desligue os avisos do sistema (no
+Windows, o modo Não incomodar). O histórico fica só na memória: fechar o app
+apaga tudo.
+
+**Claude Code e Codex na ilha (opcional):** na aba IA, "Avisar na ilha" faz a
+ilha descer quando o agente termina de responder ou para esperando você
+(pedido de permissão, pergunta). Funciona pelos hooks oficiais dos dois CLIs:
+
+- Claude Code: o botão adiciona entradas `Stop` e `Notification` em
+  `~/.claude/settings.json` (ou na pasta de `CLAUDE_CONFIG_DIR`) que chamam
+  `notchfy --hook claude`, sem shell e em segundo plano, sem atrasar o Claude.
+- Codex: o botão adiciona `notify = ["<caminho do notchfy>", "--hook", "codex"]`
+  no topo de `~/.codex/config.toml`. Se já existir um `notify` de outro
+  programa, o app não mexe e avisa.
+
+Desligar remove só as entradas do Notchfy; o resto dos arquivos fica como
+estava. O hook grava o aviso numa pasta do app (`agent-events`, dentro da pasta
+de dados do usuário) e o app aberto mostra e apaga; avisos com mais de 2
+minutos são descartados. Nada sai da máquina, e nenhuma credencial é lida. Se
+o app for reinstalado em outro lugar, desligue e ligue de novo.
 
 **Bateria:** a ilha avisa quando o carregador é conectado ou desconectado,
 quando a bateria chega a 20% e a 10% e quando termina de carregar. O nível é

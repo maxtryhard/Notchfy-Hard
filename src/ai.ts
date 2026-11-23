@@ -1,5 +1,5 @@
-import { api, type ProviderReport } from "./api";
-import { $, el, errorText, formatTokens } from "./util";
+import { api, type AgentSource, type ProviderReport } from "./api";
+import { $, el, errorText, formatTokens, logo, toast } from "./util";
 
 const dayFmt = new Intl.DateTimeFormat("pt-BR", { weekday: "narrow" });
 const agoFmt = new Intl.RelativeTimeFormat("pt-BR", { numeric: "auto" });
@@ -36,22 +36,52 @@ function row(label: string, value: number) {
   return el("div", { className: "ai-row" }, el("span", { textContent: label }), el("b", { textContent: formatTokens(value) }));
 }
 
+let hooks: Record<AgentSource, boolean> = { claude: false, codex: false };
+
+/** Liga os hooks que fazem a ilha avisar quando o agente termina ou para
+ *  esperando você. Edita o arquivo de configuração do CLI, por isso só no clique. */
+function hookSwitch(source: AgentSource) {
+  const input = el("input", { type: "checkbox", checked: hooks[source] });
+  input.addEventListener("change", async () => {
+    try {
+      await api.setAgentHooks(source, input.checked);
+      hooks[source] = input.checked;
+    } catch (e) {
+      input.checked = hooks[source];
+      toast(errorText(e));
+    }
+  });
+  return el(
+    "label",
+    { className: "switch ai-hooks", title: "Mostra na ilha quando ele termina ou precisa de você" },
+    input,
+    el("span", { className: "switch-track", ariaHidden: "true" }),
+    "Avisar na ilha",
+  );
+}
+
+function name(p: ProviderReport, ...extra: Node[]) {
+  return el("div", { className: "ai-name" }, el("span", { className: "ai-brand" }, logo(p.id), p.name), ...extra);
+}
+
 function card(p: ProviderReport) {
+  const source = p.id as AgentSource;
   if (!p.found) {
     return el(
       "div",
       { className: `ai-card card missing ai-${p.id}` },
-      el("div", { className: "ai-name", textContent: p.name }),
+      name(p),
       el("p", {
         className: "muted",
         textContent: p.id === "claude" ? "Nenhum log em ~/.claude/projects." : "Nenhum log em ~/.codex/sessions.",
       }),
+      hookSwitch(source),
     );
   }
   return el(
     "div",
     { className: `ai-card card ai-${p.id}` },
-    el("div", { className: "ai-name" }, p.name, el("small", { textContent: ago(p.lastActivity) })),
+    name(p, el("small", { textContent: ago(p.lastActivity) })),
     el(
       "div",
       { className: "ai-main" },
@@ -66,6 +96,7 @@ function card(p: ProviderReport) {
       row("Cache lido", p.today.cacheRead),
       row("7 dias", p.week.total),
     ),
+    hookSwitch(source),
   );
 }
 
@@ -74,7 +105,8 @@ export async function refreshAi() {
   if (loading) return;
   loading = true;
   try {
-    const report = await api.aiUsage();
+    const [report, status] = await Promise.all([api.aiUsage(), api.agentHooksStatus()]);
+    hooks = status;
     $(".ai-grid").replaceChildren(...report.providers.map(card));
   } catch (e) {
     $(".ai-grid").replaceChildren(el("p", { className: "muted", textContent: errorText(e) }));

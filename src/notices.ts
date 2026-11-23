@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
-import { $, el, errorText, toast } from "./util";
+import { $, el, errorText, logo, toast } from "./util";
 
 /** `icon` aponta um símbolo do index.html (`#icon-…`); sem ele, o selo mostra
  *  a inicial do app. */
@@ -47,15 +47,9 @@ function showNext() {
   }, SHOW_MS);
 }
 
-const SVG = "http://www.w3.org/2000/svg";
-
 function fillBadge(badge: HTMLElement, notice: Notice) {
   if (notice.icon) {
-    const svg = document.createElementNS(SVG, "svg");
-    const use = document.createElementNS(SVG, "use");
-    use.setAttribute("href", `#icon-${notice.icon}`);
-    svg.append(use);
-    badge.replaceChildren(svg);
+    badge.replaceChildren(logo(notice.icon));
     badge.dataset.icon = notice.icon;
   } else {
     badge.textContent = (notice.app.trim()[0] ?? "•").toUpperCase();
@@ -160,6 +154,28 @@ function battery(alert: BatteryAlert): Notice {
   }
 }
 
+type AgentNotice = { source: "claude" | "codex"; kind: "done" | "needsYou"; project: string; message: string };
+
+/** O Claude dispara "terminou" a cada resposta; repetições do mesmo projeto em
+ *  poucos segundos (vários terminais, subagentes) viram um aviso só. */
+const AGENT_REPEAT_MS = 15000;
+const lastAgent = new Map<string, number>();
+
+function agent(n: AgentNotice): Notice | null {
+  const key = `${n.source}:${n.kind}:${n.project}`;
+  const now = Date.now();
+  if (now - (lastAgent.get(key) ?? 0) < AGENT_REPEAT_MS) return null;
+  lastAgent.set(key, now);
+  const where = n.project ? ` em ${n.project}` : "";
+  const fallback = n.kind === "done" ? "Pronto para a próxima instrução." : "Volte ao terminal para responder.";
+  return {
+    app: n.source === "claude" ? "Claude Code" : "Codex",
+    icon: n.source,
+    title: n.kind === "done" ? `Terminou${where}` : `Precisa de você${where}`,
+    body: n.message || fallback,
+  };
+}
+
 /** Aviso sobre a própria escuta (ligou, foi recusada, parou). */
 const status = (title: string, body: string): Notice => ({ app: "Notify", title, body });
 
@@ -171,6 +187,10 @@ export async function initNotices() {
     renderInbox();
   });
   await listen<Notice>("island-notification", (event) => receive(event.payload));
+  await listen<AgentNotice>("island-agent", (event) => {
+    const notice = agent(event.payload);
+    if (notice) receive(notice);
+  });
   await listen<BatteryAlert>("island-battery", (event) => enqueue(battery(event.payload)));
   await listen<{ title: string; body: string }>("island-notification-status", (event) =>
     enqueue(status(event.payload.title, event.payload.body)),

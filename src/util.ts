@@ -35,3 +35,16 @@ export function toast(message: string) {
 }
 
 export const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : String(e));
+
+const SVG = "http://www.w3.org/2000/svg";
+
+/** Ícone do sprite do index.html (`#icon-<nome>`). */
+export function logo(name: string) {
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", `icon icon-${name}`);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(SVG, "use");
+  use.setAttribute("href", `#icon-${name}`);
+  svg.append(use);
+  return svg;
+}
