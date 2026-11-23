@@ -1,10 +1,17 @@
 name: build
 
+# Um build por mudança: branches rodam pelo PR, a main pelo push. No repositório
+# privado o macOS conta 10x e o Windows 2x nos minutos do Actions.
 on:
   push:
-    branches: [main, "claude/**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# Push novo no mesmo PR cancela o build anterior; na main todos terminam.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
