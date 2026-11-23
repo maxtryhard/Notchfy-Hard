@@ -60,6 +60,11 @@ npm run tauri build    # instalador em src-tauri/target/release/bundle/
 O app não aparece no Dock nem na barra de tarefas. Para sair, use o ícone na
 bandeja do sistema (barra de menus no Mac) → **Sair**.
 
+**Abrir com o sistema:** na primeira vez que roda, o app passa a abrir junto
+com o computador (entrada de login no macOS, registro `Run` no Windows,
+`~/.config/autostart` no Linux). Para desligar, desmarque **Abrir ao iniciar o
+sistema** no mesmo menu. Quem atualiza de uma versão anterior não é inscrito.
+
 **Atualizações:** o app avisa quando há versão nova (ponto verde ao lado da
 hora) e se atualiza com um clique. Como publicar uma versão está em
 [docs/ATUALIZACOES.md](docs/ATUALIZACOES.md).

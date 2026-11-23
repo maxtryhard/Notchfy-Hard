@@ -12,11 +12,12 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
+use tauri_plugin_autostart::ManagerExt;
 
 const ISLAND: &str = "island";
 const EXPANDED_WIDTH: f64 = 680.0;
@@ -346,15 +347,49 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
         .build()
 }
 
+/// Estado lido do sistema (entrada de login), não de uma cópia nossa: se a
+/// pessoa remover pelo sistema, o menu acompanha. Sem leitura, mostra desligado.
+fn autostart_enabled(app: &AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Na primeira execução o app passa a abrir com o sistema, como os apps de
+/// barra costumam fazer; dá para desligar no menu da bandeja. Quem já usava
+/// uma versão anterior não é inscrito sem saber.
+fn enable_autostart_on_first_run(app: &AppHandle, store: &store::Store) {
+    // Falhar aqui só significa abrir à mão; o menu mostra o estado real.
+    let _ = app.autolaunch().enable();
+    let _ = store.save();
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mostrar/ocultar Notchfy", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Abrir ao iniciar o sistema",
+        true,
+        autostart_enabled(app),
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &autostart, &quit])?;
     let mut tray = TrayIconBuilder::with_id("notchfy")
         .tooltip("Notchfy")
         .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
+            "autostart" => {
+                let launcher = app.autolaunch();
+                // Sem onde mostrar erro no menu: a marca abaixo volta a refletir
+                // o estado real, e é isso que a pessoa vê.
+                let _ = if autostart_enabled(app) {
+                    launcher.disable()
+                } else {
+                    launcher.enable()
+                };
+                let _ = autostart.set_checked(autostart_enabled(app));
+            }
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
                     let state = app.state::<AppState>();
@@ -394,6 +429,7 @@ pub fn run() {
                 let _ = show_collapsed(&w, &app.state::<AppState>());
             }
         }))
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -407,9 +443,15 @@ pub fn run() {
             let layout = Layout::new(platform::detect_notch());
             let handle = app.handle().clone();
             let config_dir = handle.path().app_config_dir()?;
+            let store_path = config_dir.join("notchfy.json");
+            let first_run = !store_path.exists();
+            let store = store::Store::load(store_path);
+            if first_run {
+                enable_autostart_on_first_run(&handle, &store);
+            }
             app.manage(AppState {
                 layout,
-                store: Mutex::new(store::Store::load(config_dir.join("notchfy.json"))),
+                store: Mutex::new(store),
                 tokens: tokens::Cache::default(),
                 drag_icon: write_drag_icon(&handle),
                 placement: Mutex::new(None),
