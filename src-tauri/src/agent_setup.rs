@@ -34,7 +34,11 @@ pub fn status() -> Status {
             .is_some_and(|v| claude_has_ours(&v)),
         codex: codex_config()
             .and_then(|p| read_config(&p).ok().flatten())
-            .is_some_and(|t| codex_notify_line(&t).is_some_and(|(_, ours)| ours)),
+            .is_some_and(|t| {
+                codex_notify_line(&t)
+                    .and_then(|(_, value)| parse_string_array(value))
+                    .is_some_and(|c| c.get(1..3).is_some_and(|a| a == hook_args("codex")))
+            }),
     }
 }
 
@@ -212,18 +216,14 @@ fn claude_apply(v: &mut Value, exe: Option<&str>) -> Result<(), String> {
 }
 
 /// Linha da chave `notify` no topo do config.toml (antes da primeira
-/// `[tabela]`, onde chaves de topo precisam ficar) e se ela é nossa.
-fn codex_notify_line(text: &str) -> Option<(usize, bool)> {
+/// `[tabela]`, onde chaves de topo precisam ficar) e o valor depois do `=`.
+fn codex_notify_line(text: &str) -> Option<(usize, &str)> {
     text.lines()
         .take_while(|l| !l.trim_start().starts_with('['))
-        .position(|l| {
-            l.trim_start()
-                .strip_prefix("notify")
-                .is_some_and(|rest| rest.trim_start().starts_with('='))
-        })
-        .map(|i| {
-            let line = text.lines().nth(i).unwrap_or("");
-            (i, line.contains("\"--hook\"") && line.contains("\"codex\""))
+        .enumerate()
+        .find_map(|(i, l)| {
+            let value = l.trim_start().strip_prefix("notify")?.trim_start();
+            value.strip_prefix('=').map(|v| (i, v))
         })
 }
 
@@ -231,27 +231,101 @@ fn toml_string(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-fn codex_apply(text: &str, exe: Option<&str>) -> Result<String, String> {
-    let mut lines: Vec<&str> = text.lines().collect();
-    match codex_notify_line(text) {
-        Some((_, false)) => {
-            return Err(
-                "O Codex já tem um \"notify\" configurado por outro programa; remova-o do config.toml para usar a ilha."
-                    .into(),
-            )
-        }
-        Some((i, true)) => {
-            lines.remove(i);
-        }
-        None => {}
+/// Uma string TOML (`"..."` com escapes ou `'...'` literal) no começo de
+/// `src`, e o que sobra depois dela.
+fn parse_toml_string(src: &str) -> Option<(String, &str)> {
+    if let Some(body) = src.strip_prefix('\'') {
+        let end = body.find('\'')?;
+        return Some((body[..end].to_string(), &body[end + 1..]));
     }
-    let new_line = exe.map(|exe| {
-        let args = hook_args("codex").map(|a| toml_string(&a)).join(", ");
-        format!("notify = [{}, {args}]", toml_string(exe))
-    });
-    let mut out: Vec<&str> = new_line.iter().map(String::as_str).collect();
-    out.extend(lines);
-    let mut joined = out.join("\n");
+    let body = src.strip_prefix('"')?;
+    let mut out = String::new();
+    let mut chars = body.char_indices();
+    while let Some((i, c)) = chars.next() {
+        match c {
+            '"' => return Some((out, &body[i + 1..])),
+            '\\' => out.push(match chars.next()?.1 {
+                '\\' => '\\',
+                '"' => '"',
+                't' => '\t',
+                'n' => '\n',
+                _ => return None,
+            }),
+            _ => out.push(c),
+        }
+    }
+    None
+}
+
+/// Array de strings numa linha só (`["a", 'b']`), como o Codex grava o
+/// `notify`. Qualquer outro formato dá `None` e o arquivo não é mexido.
+fn parse_string_array(src: &str) -> Option<Vec<String>> {
+    let mut rest = src.trim().strip_prefix('[')?.trim_start();
+    let mut out = Vec::new();
+    loop {
+        if let Some(after) = rest.strip_prefix(']') {
+            let after = after.trim();
+            return (after.is_empty() || after.starts_with('#')).then_some(out);
+        }
+        let (item, after) = parse_toml_string(rest)?;
+        out.push(item);
+        rest = after.trim_start();
+        match rest.strip_prefix(',') {
+            Some(after) => rest = after.trim_start(),
+            None if rest.starts_with(']') => {}
+            None => return None,
+        }
+    }
+}
+
+/// Programa de `notify` que já existia antes do Notchfy (o app do Codex usa
+/// um para o "computer use"). Quando o nosso está ligado, ele fica guardado
+/// depois de `--` e o hook repassa cada aviso para ele.
+fn previous_notify(current: &[String]) -> &[String] {
+    let ours = current.get(1..3).is_some_and(|a| a == hook_args("codex"));
+    if !ours {
+        return current;
+    }
+    match current.get(3).map(String::as_str) {
+        Some("--") => &current[4..],
+        _ => &[],
+    }
+}
+
+fn notify_line(command: &[String]) -> String {
+    let items: Vec<String> = command.iter().map(|a| toml_string(a)).collect();
+    format!("notify = [{}]", items.join(", "))
+}
+
+fn codex_apply(text: &str, exe: Option<&str>) -> Result<String, String> {
+    let mut lines: Vec<String> = text.lines().map(String::from).collect();
+    let (at, current) = match codex_notify_line(text) {
+        Some((i, value)) => {
+            let current = parse_string_array(value).ok_or(
+                "O \"notify\" do config.toml do Codex está num formato que o app não sabe ler; nada foi alterado.",
+            )?;
+            lines.remove(i);
+            (i, current)
+        }
+        None => (0, Vec::new()),
+    };
+    let previous = previous_notify(&current).to_vec();
+    let command: Vec<String> = match exe {
+        Some(exe) => {
+            let mut c = vec![exe.to_string()];
+            c.extend(hook_args("codex"));
+            if !previous.is_empty() {
+                c.push("--".into());
+                c.extend(previous);
+            }
+            c
+        }
+        None => previous,
+    };
+    if !command.is_empty() {
+        lines.insert(at, notify_line(&command));
+    }
+    let mut joined = lines.join("\n");
     if !joined.is_empty() {
         joined.push('\n');
     }
@@ -319,17 +393,53 @@ mod tests {
             on.lines().next().unwrap(),
             r#"notify = ["C:\\Program Files\\Notchfy\\notchfy.exe", "--hook", "codex"]"#
         );
-        assert_eq!(codex_notify_line(&on), Some((0, true)));
         assert_eq!(codex_apply(&on, None).unwrap(), original);
         assert_eq!(codex_apply("", None).unwrap(), "");
     }
 
+    // Linha que o app do Codex para Windows grava (versão 26.1117).
+    const CODEX_APP_NOTIFY: &str = r#"notify = [ "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.1117.4957.0_x64__2p2nqsd0c76g0\\app\\resources\\cua_node\\bin\\node_modules\\@oai\\sky\\bin\\windows\\codex-computer-use.exe", "turn-ended" ]"#;
+    const CODEX_APP_EXE: &str = r"C:\Program Files\WindowsApps\OpenAI.Codex_26.1117.4957.0_x64__2p2nqsd0c76g0\app\resources\cua_node\bin\node_modules\@oai\sky\bin\windows\codex-computer-use.exe";
+
     #[test]
-    fn refuses_someone_elses_codex_notify() {
-        let theirs = "notify = [\"python3\", \"/home/ana/notify.py\"]\n";
-        assert!(codex_apply(theirs, Some(EXE)).is_err());
+    fn reads_the_codex_app_notify() {
+        let (_, value) = codex_notify_line(CODEX_APP_NOTIFY).unwrap();
+        assert_eq!(
+            parse_string_array(value).unwrap(),
+            [CODEX_APP_EXE, "turn-ended"]
+        );
+    }
+
+    #[test]
+    fn chains_and_restores_an_existing_notify() {
+        let original = format!("{CODEX_APP_NOTIFY}\n\n[plugins.\"x\"]\nenabled = true\n");
+        let on = codex_apply(&original, Some(EXE)).unwrap();
+        let (i, value) = codex_notify_line(&on).unwrap();
+        assert_eq!(i, 0);
+        assert_eq!(
+            parse_string_array(value).unwrap(),
+            [EXE, "--hook", "codex", "--", CODEX_APP_EXE, "turn-ended"]
+        );
+        // Ligar de novo não empilha outra cópia.
+        assert_eq!(codex_apply(&on, Some(EXE)).unwrap(), on);
+        let off = codex_apply(&on, None).unwrap();
+        let (_, value) = codex_notify_line(&off).unwrap();
+        assert_eq!(
+            parse_string_array(value).unwrap(),
+            [CODEX_APP_EXE, "turn-ended"]
+        );
+        assert!(off.ends_with("[plugins.\"x\"]\nenabled = true\n"));
+    }
+
+    #[test]
+    fn leaves_unreadable_notify_alone() {
+        // Array em várias linhas: o app não tenta adivinhar.
+        assert!(codex_apply("notify = [\n  \"a\",\n]\n", Some(EXE)).is_err());
         // Uma chave `notify` dentro de uma tabela não é a de topo.
-        let in_table = "[mcp_servers.x]\nnotify = true\n";
-        assert_eq!(codex_notify_line(in_table), None);
+        assert_eq!(codex_notify_line("[mcp_servers.x]\nnotify = true\n"), None);
+        assert_eq!(
+            parse_string_array(r#"['C:\a b', "x\"y"] # comentário"#).unwrap(),
+            [r"C:\a b", "x\"y"]
+        );
     }
 }
