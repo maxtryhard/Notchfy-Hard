@@ -368,6 +368,14 @@ pub fn run() {
     platform::prepare_environment();
 
     tauri::Builder::default()
+        // Precisa ser o primeiro plugin. Abrir o app de novo (ou um hook antigo
+        // que chame o executável sem argumentos) só mostra a ilha que já existe.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window(ISLAND) {
+                // Sem onde mostrar erro: no pior caso a ilha segue oculta.
+                let _ = show_collapsed(&w, &app.state::<AppState>());
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
