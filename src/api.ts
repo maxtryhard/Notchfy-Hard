@@ -38,6 +38,7 @@ export type ProviderReport = {
   lastActivity: string | null;
 };
 export type Report = { providers: ProviderReport[]; generatedAt: string };
+export type AgentSource = "claude" | "codex";
 
 export const api = {
   layout: () => invoke<Layout>("get_layout"),
@@ -54,4 +55,6 @@ export const api = {
   dragIcon: () => invoke<string | null>("drag_icon"),
   notificationsInit: () => invoke<boolean>("notifications_init"),
   setNotificationsEnabled: (on: boolean) => invoke<void>("set_notifications_enabled", { on }),
+  agentHooksStatus: () => invoke<Record<AgentSource, boolean>>("agent_hooks_status"),
+  setAgentHooks: (source: AgentSource, on: boolean) => invoke<void>("set_agent_hooks", { source, on }),
 };

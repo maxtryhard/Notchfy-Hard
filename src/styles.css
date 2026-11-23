@@ -340,7 +340,7 @@ svg .fill {
     transform 0.42s var(--spring);
 }
 
-/* Inicial do app num círculo: reconhecível sem precisar do ícone dele. */
+/* Ícone do aviso, ou a inicial do app quando não há ícone. */
 .peek-badge {
   display: grid;
   place-items: center;
@@ -352,6 +352,37 @@ svg .fill {
   color: var(--accent);
   font-weight: 700;
   font-size: 15px;
+}
+
+.peek-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Ícones do sprite: traço por padrão, preenchimento onde há `.fill`. */
+svg.icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+svg.icon .fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.peek-badge[data-icon="battery-low"] {
+  color: var(--danger);
+}
+
+.peek-badge[data-icon="claude"] {
+  color: var(--claude);
+}
+
+.peek-badge[data-icon="codex"] {
+  color: var(--codex);
 }
 
 .peek-text {
@@ -1187,6 +1218,23 @@ svg .fill {
   gap: 8px;
   font-weight: 650;
   color: var(--brand);
+}
+
+.ai-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: center;
+}
+
+.ai-brand svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ai-hooks {
+  margin: 8px 0 0;
+  font-size: 11px;
 }
 
 .ai-name small {

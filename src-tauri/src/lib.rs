@@ -1,3 +1,8 @@
+mod agent_events;
+mod agent_setup;
+mod battery;
+#[cfg(any(windows, test))]
+mod fullscreen;
 mod hover;
 mod media;
 mod notify;
@@ -9,11 +14,12 @@ use std::sync::Mutex;
 
 use serde::Serialize;
 use tauri::{
-    menu::{Menu, MenuItem},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
+use tauri_plugin_autostart::ManagerExt;
 
 const ISLAND: &str = "island";
 const EXPANDED_WIDTH: f64 = 680.0;
@@ -298,6 +304,16 @@ fn open_path(app: AppHandle, path: String, reveal: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn agent_hooks_status() -> agent_setup::Status {
+    agent_setup::status()
+}
+
+#[tauri::command]
+fn set_agent_hooks(source: agent_events::Source, on: bool) -> Result<(), String> {
+    agent_setup::set(source, on)
+}
+
+#[tauri::command]
 fn drag_icon(state: State<'_, AppState>) -> Option<String> {
     state.drag_icon.clone()
 }
@@ -333,15 +349,71 @@ fn create_island(app: &AppHandle, layout: Layout) -> tauri::Result<WebviewWindow
         .build()
 }
 
+/// Confere a cada segundo se há algo em tela cheia e esconde ou mostra a ilha.
+#[cfg(windows)]
+fn watch_fullscreen(window: WebviewWindow) {
+    std::thread::spawn(move || {
+        let mut tracker = fullscreen::Tracker::default();
+        loop {
+            let visible = window.is_visible().unwrap_or(false);
+            let state = window.state::<AppState>();
+            // Falhas aqui só acontecem com a janela fechando; o próximo ciclo tenta de novo.
+            let _ = match tracker.next(fullscreen::is_fullscreen(), visible) {
+                Some(fullscreen::Action::Hide) => {
+                    *state.hover_area.lock().unwrap() = None;
+                    window.hide()
+                }
+                Some(fullscreen::Action::Show) => show_collapsed(&window, &state),
+                None => Ok(()),
+            };
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+}
+
+/// Estado lido do sistema (entrada de login), não de uma cópia nossa: se a
+/// pessoa remover pelo sistema, o menu acompanha. Sem leitura, mostra desligado.
+fn autostart_enabled(app: &AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// Na primeira execução o app passa a abrir com o sistema, como os apps de
+/// barra costumam fazer; dá para desligar no menu da bandeja. Quem já usava
+/// uma versão anterior não é inscrito sem saber.
+fn enable_autostart_on_first_run(app: &AppHandle, store: &store::Store) {
+    // Falhar aqui só significa abrir à mão; o menu mostra o estado real.
+    let _ = app.autolaunch().enable();
+    let _ = store.save();
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let toggle = MenuItem::with_id(app, "toggle", "Mostrar/ocultar Notchfy", true, None::<&str>)?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        "Abrir ao iniciar o sistema",
+        true,
+        autostart_enabled(app),
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Sair", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&toggle, &quit])?;
+    let menu = Menu::with_items(app, &[&toggle, &autostart, &quit])?;
     let mut tray = TrayIconBuilder::with_id("notchfy")
         .tooltip("Notchfy")
         .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(move |app, event| match event.id.as_ref() {
             "quit" => app.exit(0),
+            "autostart" => {
+                let launcher = app.autolaunch();
+                // Sem onde mostrar erro no menu: a marca abaixo volta a refletir
+                // o estado real, e é isso que a pessoa vê.
+                let _ = if autostart_enabled(app) {
+                    launcher.disable()
+                } else {
+                    launcher.enable()
+                };
+                let _ = autostart.set_checked(autostart_enabled(app));
+            }
             "toggle" => {
                 if let Some(w) = app.get_webview_window(ISLAND) {
                     let state = app.state::<AppState>();
@@ -365,9 +437,23 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 }
 
 pub fn run() {
+    // Chamado por um hook do Claude Code ou do Codex: grava o aviso e sai,
+    // sem abrir janela nem tocar no app que já está aberto.
+    if agent_events::handle_hook_invocation() {
+        return;
+    }
     platform::prepare_environment();
 
     tauri::Builder::default()
+        // Precisa ser o primeiro plugin. Abrir o app de novo (ou um hook antigo
+        // que chame o executável sem argumentos) só mostra a ilha que já existe.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(w) = app.get_webview_window(ISLAND) {
+                // Sem onde mostrar erro: no pior caso a ilha segue oculta.
+                let _ = show_collapsed(&w, &app.state::<AppState>());
+            }
+        }))
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -381,9 +467,15 @@ pub fn run() {
             let layout = Layout::new(platform::detect_notch());
             let handle = app.handle().clone();
             let config_dir = handle.path().app_config_dir()?;
+            let store_path = config_dir.join("notchfy.json");
+            let first_run = !store_path.exists();
+            let store = store::Store::load(store_path);
+            if first_run {
+                enable_autostart_on_first_run(&handle, &store);
+            }
             app.manage(AppState {
                 layout,
-                store: Mutex::new(store::Store::load(config_dir.join("notchfy.json"))),
+                store: Mutex::new(store),
                 tokens: tokens::Cache::default(),
                 drag_icon: write_drag_icon(&handle),
                 placement: Mutex::new(None),
@@ -399,7 +491,18 @@ pub fn run() {
             platform::configure_window(&window);
             let state = app.state::<AppState>();
             show_collapsed(&window, &state)?;
+            #[cfg(windows)]
+            watch_fullscreen(window.clone());
             hover::watch(window, state.hover_area.clone());
+            let agents = handle.clone();
+            agent_events::watch(move |notice| {
+                // emit só falha com o app fechando; não há a quem avisar.
+                let _ = agents.emit(agent_events::AGENT_EVENT, notice);
+            });
+            battery::watch(move |alert| {
+                // emit só falha com o app fechando; não há a quem avisar.
+                let _ = handle.emit(battery::BATTERY_EVENT, alert);
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -417,6 +520,8 @@ pub fn run() {
             shelf_remove,
             open_path,
             drag_icon,
+            agent_hooks_status,
+            set_agent_hooks,
         ])
         .run(tauri::generate_context!())
         .expect("falha ao iniciar o Notchfy");

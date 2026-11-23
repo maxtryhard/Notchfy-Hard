@@ -4,20 +4,43 @@ Uma barra interativa que fica no topo da tela, para macOS, Windows e Linux.
 
 ![A ilha abrindo, trocando de aba e recolhendo](docs/media/animacao.gif)
 Recolhida, ela é uma pílula com a hora e o que está tocando. Ao passar o mouse,
-abre um painel com quatro abas:
+abre um painel com cinco abas:
 
 | Aba | O que faz |
 | --- | --- |
 | **Início** | Música tocando agora (capa, progresso, tocar/pausar/avançar/voltar), relógio e calendário do mês |
+| **Avisos** | Notificações recebidas desde que o app abriu, com contador de não lidas |
 | **Prateleira** | Solte arquivos na ilha para guardar; arraste de volta para qualquer app; clique para abrir |
 | **Atalhos** | Apps favoritos, links, pastas e comandos, editáveis pela própria barra |
 | **IA** | Tokens usados hoje e nos últimos 7 dias no Claude Code e no Codex CLI |
 
 **Notificações na ilha (opcional, desligado por padrão):** ao ligar "Mostrar
-notificações na ilha" no menu do ícone da bandeja, as notificações dos outros
-apps descem na ilha e sobem de novo. Para elas aparecerem só na ilha, desligue
-os avisos do sistema (no Windows, o modo Não incomodar). O app não guarda
-nenhuma notificação.
+na ilha" na aba Avisos, as notificações dos outros apps descem na ilha e sobem
+de novo. Para elas aparecerem só na ilha, desligue os avisos do sistema (no
+Windows, o modo Não incomodar). O histórico fica só na memória: fechar o app
+apaga tudo.
+
+**Claude Code e Codex na ilha (opcional):** na aba IA, "Avisar na ilha" faz a
+ilha descer quando o agente termina de responder ou para esperando você
+(pedido de permissão, pergunta). Funciona pelos hooks oficiais dos dois CLIs:
+
+- Claude Code: o botão adiciona entradas `Stop` e `Notification` em
+  `~/.claude/settings.json` (ou na pasta de `CLAUDE_CONFIG_DIR`) que chamam
+  `notchfy --hook claude`, sem shell e em segundo plano, sem atrasar o Claude.
+- Codex: o botão adiciona `notify = ["<caminho do notchfy>", "--hook", "codex"]`
+  no topo de `~/.codex/config.toml`. Se já existir um `notify` de outro
+  programa, o app não mexe e avisa.
+
+Desligar remove só as entradas do Notchfy; o resto dos arquivos fica como
+estava. O hook grava o aviso numa pasta do app (`agent-events`, dentro da pasta
+de dados do usuário) e o app aberto mostra e apaga; avisos com mais de 2
+minutos são descartados. Nada sai da máquina, e nenhuma credencial é lida. Se
+o app for reinstalado em outro lugar, desligue e ligue de novo.
+
+**Bateria:** a ilha avisa quando o carregador é conectado ou desconectado,
+quando a bateria chega a 20% e a 10% e quando termina de carregar. O nível é
+lido do próprio sistema a cada 20 s (`/sys/class/power_supply` no Linux,
+`GetSystemPowerStatus` no Windows, `pmset` no macOS). Sem bateria, nada aparece.
 
 No MacBook com notch, a pílula se encaixa em volta do recorte: a capa do
 álbum fica à esquerda, a hora à direita e o centro fica sob o notch. Nas outras
@@ -36,6 +59,11 @@ npm run tauri build    # instalador em src-tauri/target/release/bundle/
 
 O app não aparece no Dock nem na barra de tarefas. Para sair, use o ícone na
 bandeja do sistema (barra de menus no Mac) → **Sair**.
+
+**Abrir com o sistema:** na primeira vez que roda, o app passa a abrir junto
+com o computador (entrada de login no macOS, registro `Run` no Windows,
+`~/.config/autostart` no Linux). Para desligar, desmarque **Abrir ao iniciar o
+sistema** no mesmo menu. Quem atualiza de uma versão anterior não é inscrito.
 
 **Atualizações:** o app avisa quando há versão nova (ponto verde ao lado da
 hora) e se atualiza com um clique. Como publicar uma versão está em
@@ -66,6 +94,10 @@ sistemas e anexa os instaladores (`.dmg`, `.msi`/`.exe`, `.deb`/`.AppImage`) à 
   pela API oficial, que segundo a documentação exige o app empacotado (MSIX,
   como na Microsoft Store); com o instalador `.exe` o Windows pode recusar, e a
   ilha mostra o código do erro. No macOS ainda não existe.
+- **Tela cheia**: com um vídeo, jogo ou apresentação em tela cheia, a ilha some
+  e volta quando a tela cheia acaba. No Windows vale para qualquer monitor (a
+  API do sistema não diz qual). No macOS a ilha não aparece em nenhum app em
+  tela cheia. No Linux não há detecção: depende do gerenciador de janelas.
 - **Assinatura**: os builds não são assinados. No macOS, abra com clique direito →
   Abrir (ou `xattr -dr com.apple.quarantine /Applications/Notchfy.app`); no
   Windows, o SmartScreen pede confirmação.
@@ -78,13 +110,22 @@ src/                 Interface (TypeScript, sem framework)
   media.ts           Player
   shelf.ts           Prateleira e arraste para fora
   shortcuts.ts       Atalhos
-  ai.ts              Painel de tokens
+  ai.ts              Painel de tokens e botões "Avisar na ilha"
+  notices.ts         Notificações que descem na ilha e caixa de avisos
+  mascot.ts          Mascote que segue o cursor
+  updates.ts         Botão de atualização
   clock.ts           Relógio e calendário
 src-tauri/src/       Backend (Rust)
   lib.rs             Janela, posicionamento, comandos, bandeja
   platform.rs        Detecção do notch e nível da janela no macOS
   media.rs           Player por sistema (MPRIS, SMTC, AppleScript)
   tokens.rs          Leitura dos logs do Claude Code e do Codex
+  agent_events.rs    Avisos do Claude Code/Codex (modo --hook e leitura da fila)
+  agent_setup.rs     Liga/desliga os hooks nos arquivos de config dos CLIs
+  battery.rs         Avisos de bateria
+  fullscreen.rs      Esconde a ilha em tela cheia (Windows)
+  notify.rs          Notificações dos outros apps (D-Bus, Windows)
+  hover.rs           Detecta o mouse sobre a ilha
   store.rs           Atalhos e prateleira salvos em JSON
 ```
 

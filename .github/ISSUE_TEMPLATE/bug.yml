@@ -1,0 +1,37 @@
+name: Problema
+description: Algo não funciona como deveria.
+labels: [bug]
+body:
+  - type: dropdown
+    id: sistema
+    attributes:
+      label: Sistema
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do app
+      description: Aparece no instalador ou no nome do arquivo baixado.
+      placeholder: "0.1.1"
+    validations:
+      required: true
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: Inclua a mensagem de erro, se a ilha mostrou alguma.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abrir a aba…
+        2. Clicar em…
+  - type: textarea
+    id: esperado
+    attributes:
+      label: O que era esperado
