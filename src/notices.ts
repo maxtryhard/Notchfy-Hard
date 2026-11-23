@@ -2,7 +2,9 @@ import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
 import { $, el, errorText, toast } from "./util";
 
-type Notice = { app: string; title: string; body: string };
+/** `icon` aponta um símbolo do index.html (`#icon-…`); sem ele, o selo mostra
+ *  a inicial do app. */
+type Notice = { app: string; title: string; body: string; icon?: string };
 type Received = Notice & { at: number };
 
 /** Quanto tempo cada notificação fica à mostra. */
@@ -30,7 +32,7 @@ function showNext() {
   }
   const notice = queue.shift()!;
   showing = true;
-  $(".peek-badge").textContent = (notice.app.trim()[0] ?? "•").toUpperCase();
+  fillBadge($(".peek .peek-badge"), notice);
   $(".peek-app").textContent = notice.app;
   $(".peek-title").textContent = notice.title;
   $(".peek-body").textContent = notice.body;
@@ -43,6 +45,22 @@ function showNext() {
       showNext();
     }, GAP_MS);
   }, SHOW_MS);
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+
+function fillBadge(badge: HTMLElement, notice: Notice) {
+  if (notice.icon) {
+    const svg = document.createElementNS(SVG, "svg");
+    const use = document.createElementNS(SVG, "use");
+    use.setAttribute("href", `#icon-${notice.icon}`);
+    svg.append(use);
+    badge.replaceChildren(svg);
+    badge.dataset.icon = notice.icon;
+  } else {
+    badge.textContent = (notice.app.trim()[0] ?? "•").toUpperCase();
+    delete badge.dataset.icon;
+  }
 }
 
 function enqueue(notice: Notice) {
@@ -59,13 +77,19 @@ function ago(at: number) {
   return agoFmt.format(Math.round(minutes / 60), "hour");
 }
 
+function badgeFor(notice: Notice) {
+  const span = el("span", { className: "peek-badge" });
+  fillBadge(span, notice);
+  return span;
+}
+
 function renderInbox() {
   $(".inbox-list").replaceChildren(
     ...inbox.map((n) =>
       el(
         "li",
         { className: "inbox-item" },
-        el("span", { className: "peek-badge", textContent: (n.app.trim()[0] ?? "•").toUpperCase() }),
+        badgeFor(n),
         el(
           "div",
           { className: "inbox-text" },
@@ -117,6 +141,25 @@ async function toggle(input: HTMLInputElement) {
   renderInbox();
 }
 
+type BatteryAlert =
+  | { kind: "plugged" | "unplugged" | "low"; percent: number }
+  | { kind: "full" };
+
+/** Bateria só aparece na ilha; não vai para a caixa de avisos. */
+function battery(alert: BatteryAlert): Notice {
+  const app = "Bateria";
+  switch (alert.kind) {
+    case "plugged":
+      return { app, icon: "charging", title: "Carregador conectado", body: `Carregando · ${alert.percent}%` };
+    case "unplugged":
+      return { app, icon: "battery", title: "Carregador desconectado", body: `Na bateria · ${alert.percent}%` };
+    case "low":
+      return { app, icon: "battery-low", title: "Bateria fraca", body: `${alert.percent}% restante. Conecte o carregador.` };
+    case "full":
+      return { app, icon: "charging", title: "Bateria carregada", body: "100%. Já pode desconectar o carregador." };
+  }
+}
+
 /** Aviso sobre a própria escuta (ligou, foi recusada, parou). */
 const status = (title: string, body: string): Notice => ({ app: "Notify", title, body });
 
@@ -128,6 +171,7 @@ export async function initNotices() {
     renderInbox();
   });
   await listen<Notice>("island-notification", (event) => receive(event.payload));
+  await listen<BatteryAlert>("island-battery", (event) => enqueue(battery(event.payload)));
   await listen<{ title: string; body: string }>("island-notification-status", (event) =>
     enqueue(status(event.payload.title, event.payload.body)),
   );

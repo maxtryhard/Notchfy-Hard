@@ -1,3 +1,4 @@
+mod battery;
 mod hover;
 mod media;
 mod notify;
@@ -408,6 +409,10 @@ pub fn run() {
             let state = app.state::<AppState>();
             show_collapsed(&window, &state)?;
             hover::watch(window, state.hover_area.clone());
+            battery::watch(move |alert| {
+                // emit só falha com o app fechando; não há a quem avisar.
+                let _ = handle.emit(battery::BATTERY_EVENT, alert);
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -340,7 +340,7 @@ svg .fill {
     transform 0.42s var(--spring);
 }
 
-/* Inicial do app num círculo: reconhecível sem precisar do ícone dele. */
+/* Ícone do aviso, ou a inicial do app quando não há ícone. */
 .peek-badge {
   display: grid;
   place-items: center;
@@ -352,6 +352,25 @@ svg .fill {
   color: var(--accent);
   font-weight: 700;
   font-size: 15px;
+}
+
+.peek-badge svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.peek-badge svg .fill {
+  fill: currentColor;
+  stroke: none;
+}
+
+.peek-badge[data-icon="battery-low"] {
+  color: var(--danger);
 }
 
 .peek-text {

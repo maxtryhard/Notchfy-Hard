@@ -19,6 +19,11 @@ apps descem na ilha e sobem de novo. Para elas aparecerem só na ilha, desligue
 os avisos do sistema (no Windows, o modo Não incomodar). O app não guarda
 nenhuma notificação.
 
+**Bateria:** a ilha avisa quando o carregador é conectado ou desconectado,
+quando a bateria chega a 20% e a 10% e quando termina de carregar. O nível é
+lido do próprio sistema a cada 20 s (`/sys/class/power_supply` no Linux,
+`GetSystemPowerStatus` no Windows, `pmset` no macOS). Sem bateria, nada aparece.
+
 No MacBook com notch, a pílula se encaixa em volta do recorte: a capa do
 álbum fica à esquerda, a hora à direita e o centro fica sob o notch. Nas outras
 telas ela é uma pílula preta presa ao topo.
