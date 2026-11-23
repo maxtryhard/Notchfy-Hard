@@ -101,13 +101,21 @@ src/                 Interface (TypeScript, sem framework)
   media.ts           Player
   shelf.ts           Prateleira e arraste para fora
   shortcuts.ts       Atalhos
-  ai.ts              Painel de tokens
+  ai.ts              Painel de tokens e botões "Avisar na ilha"
+  notices.ts         Notificações que descem na ilha e caixa de avisos
+  mascot.ts          Mascote que segue o cursor
+  updates.ts         Botão de atualização
   clock.ts           Relógio e calendário
 src-tauri/src/       Backend (Rust)
   lib.rs             Janela, posicionamento, comandos, bandeja
   platform.rs        Detecção do notch e nível da janela no macOS
   media.rs           Player por sistema (MPRIS, SMTC, AppleScript)
   tokens.rs          Leitura dos logs do Claude Code e do Codex
+  agent_events.rs    Avisos do Claude Code/Codex (modo --hook e leitura da fila)
+  agent_setup.rs     Liga/desliga os hooks nos arquivos de config dos CLIs
+  battery.rs         Avisos de bateria
+  notify.rs          Notificações dos outros apps (D-Bus, Windows)
+  hover.rs           Detecta o mouse sobre a ilha
   store.rs           Atalhos e prateleira salvos em JSON
 ```
 
