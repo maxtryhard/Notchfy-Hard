@@ -28,8 +28,12 @@ ilha descer quando o agente termina de responder ou para esperando você
   `~/.claude/settings.json` (ou na pasta de `CLAUDE_CONFIG_DIR`) que chamam
   `notchfy --hook claude`, sem shell e em segundo plano, sem atrasar o Claude.
 - Codex: o botão adiciona `notify = ["<caminho do notchfy>", "--hook", "codex"]`
-  no topo de `~/.codex/config.toml`. Se já existir um `notify` de outro
-  programa, o app não mexe e avisa.
+  no topo de `~/.codex/config.toml`. O Codex aceita um `notify` só; se já
+  houver um (o app do Codex para Windows usa um para o "computer use"), ele é
+  guardado depois de `--` na mesma linha e cada aviso é repassado a ele, com os
+  mesmos argumentos. Desligar devolve a linha original. Se o Codex for
+  atualizado e regravar a própria linha, o botão aparece desligado: é só ligar
+  de novo.
 
 Desligar remove só as entradas do Notchfy; o resto dos arquivos fica como
 estava. O hook grava o aviso numa pasta do app (`agent-events`, dentro da pasta

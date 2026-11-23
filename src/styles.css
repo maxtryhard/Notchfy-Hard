@@ -187,6 +187,81 @@ svg .fill {
   display: none;
 }
 
+/* Com música tocando, a capa substitui o mascote e o título brilha de leve
+   nas cores dela (definidas em media.ts; sem capa, as cores padrão). */
+.island {
+  --art-a: var(--accent);
+  --art-b: var(--codex);
+}
+
+.pill-art {
+  display: none;
+  position: relative;
+  isolation: isolate;
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.pill-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Halo girando atrás da capa. Gira só `transform`, sem refazer o desfoque. */
+.pill-art::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: conic-gradient(var(--art-a), var(--art-b), var(--art-a));
+  filter: blur(4px);
+  opacity: 0.55;
+  animation: spin 6s linear infinite;
+}
+
+.island.playing.has-art .pill-art {
+  display: block;
+}
+
+.island.playing.has-art .mascot {
+  display: none;
+}
+
+.island.playing .pill-title {
+  background: linear-gradient(
+      90deg,
+      var(--muted) 35%,
+      color-mix(in srgb, var(--art-a) 75%, var(--muted)) 45%,
+      color-mix(in srgb, var(--art-b) 75%, var(--muted)) 55%,
+      var(--muted) 65%
+    )
+    0 0 / 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shine 7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes shine {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
 /* ---------- Mascote ---------- */
 
 /* Esfera de neon: o volume vem dos degradês do SVG; o halo, de duas sombras
@@ -283,7 +358,7 @@ svg .fill {
   width: 3px;
   height: 100%;
   border-radius: 2px;
-  background: var(--accent);
+  background: var(--art-a);
   transform-origin: bottom;
   will-change: transform;
   animation: eq 0.9s ease-in-out infinite;
@@ -677,20 +752,64 @@ svg.icon .fill {
   text-overflow: ellipsis;
 }
 
+/* A barra anda nas cores da capa, com um ponto de luz na posição atual e um
+   reflexo que passa enquanto toca. Engrossa ao passar o mouse no player. */
 .progress {
+  --p: 0;
+  position: relative;
   margin-top: auto;
   height: 4px;
-  border-radius: 2px;
+  border-radius: 3px;
   background: #2a2d34;
-  overflow: hidden;
+  transition: height 0.2s var(--ease);
+}
+
+.media:hover .progress {
+  height: 6px;
 }
 
 .progress-bar {
+  position: relative;
+  width: calc(var(--p) * 100%);
   height: 100%;
-  background: var(--text);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.5s linear;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--art-b), var(--art-a));
+  transition: width 0.5s linear;
+}
+
+.island.playing .progress-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -40%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  animation: sweep 2.6s ease-in-out infinite;
+}
+
+.progress-knob {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--p) * 100%);
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--art-a) 45%, white);
+  box-shadow: 0 0 8px var(--art-a);
+  transition:
+    left 0.5s linear,
+    transform 0.2s var(--spring);
+}
+
+.media:hover .progress-knob {
+  transform: scale(1.35);
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(350%);
+  }
 }
 
 .progress-times {
@@ -1347,13 +1466,19 @@ svg.icon .fill {
   .tab-highlight,
   .mascot-eyes,
   .mascot-eye,
-  .mascot-glint {
+  .mascot-glint,
+  .progress,
+  .progress-bar,
+  .progress-knob {
     transition: none !important;
   }
   .view,
   .cal-grid,
   .cal-title,
-  .eq i {
+  .eq i,
+  .pill-art::after,
+  .pill-title,
+  .progress-bar::before {
     animation: none !important;
   }
 }

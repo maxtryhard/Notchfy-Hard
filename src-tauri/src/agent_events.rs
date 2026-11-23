@@ -136,10 +136,13 @@ pub fn handle_hook_invocation() -> bool {
                 .read_to_string(&mut payload);
             parse_claude(&payload)
         }
-        Some("codex") => args
-            .last()
-            .filter(|a| a.len() as u64 <= MAX_PAYLOAD)
-            .and_then(|a| parse_codex(a)),
+        Some("codex") => {
+            let payload = args.last().filter(|a| a.len() as u64 <= MAX_PAYLOAD);
+            if let Some(payload) = payload {
+                forward_to_previous_notify(&args, payload);
+            }
+            payload.and_then(|a| parse_codex(a))
+        }
         _ => None,
     };
     if let (Some(notice), Some(dir)) = (notice, spool_dir()) {
@@ -147,6 +150,36 @@ pub fn handle_hook_invocation() -> bool {
         let _ = write_event(&dir, &notice);
     }
     true
+}
+
+/// Programa de `notify` que o Codex já tinha antes do Notchfy, guardado
+/// depois de `--` (`notchfy --hook codex -- <programa> <args…> <json>`).
+fn previous_notify(args: &[String]) -> Option<&[String]> {
+    let rest = args.get(2..args.len().checked_sub(1)?)?;
+    rest.split_first()
+        .filter(|(first, cmd)| first.as_str() == "--" && !cmd.is_empty())
+        .map(|(_, cmd)| cmd)
+}
+
+/// Repassa o aviso para o programa anterior, como o Codex faria, para ele
+/// continuar funcionando. Roda o que a própria pessoa (ou o app do Codex)
+/// configurou, com a lista de argumentos original e sem shell.
+fn forward_to_previous_notify(args: &[String], payload: &str) {
+    let Some((program, rest)) = previous_notify(args).and_then(<[String]>::split_first) else {
+        return;
+    };
+    let mut command = std::process::Command::new(program);
+    command.args(rest).arg(payload);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // Sem janela de console piscando: o Notchfy roda sem console.
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    // Se o programa anterior sumiu (ex.: o Codex foi atualizado), só ele deixa
+    // de rodar; o aviso na ilha continua.
+    let _ = command.spawn();
 }
 
 /// Grava num arquivo temporário e renomeia, para o app nunca ler pela metade.
@@ -282,6 +315,28 @@ mod tests {
             "Rename complete and verified `cargo build` succeeds."
         );
         assert_eq!(parse_codex(r#"{"type":"other"}"#), None);
+    }
+
+    #[test]
+    fn finds_the_chained_notify() {
+        let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let chained = args(&[
+            "--hook",
+            "codex",
+            "--",
+            "computer-use.exe",
+            "turn-ended",
+            "{}",
+        ]);
+        assert_eq!(
+            previous_notify(&chained).unwrap(),
+            ["computer-use.exe", "turn-ended"]
+        );
+        assert_eq!(previous_notify(&args(&["--hook", "codex", "{}"])), None);
+        assert_eq!(
+            previous_notify(&args(&["--hook", "codex", "--", "{}"])),
+            None
+        );
     }
 
     #[test]

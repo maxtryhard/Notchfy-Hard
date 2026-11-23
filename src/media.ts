@@ -1,4 +1,5 @@
 import { api, type MediaState } from "./api";
+import { artColors } from "./palette";
 import { $, errorText, formatDuration, toast } from "./util";
 
 let current: MediaState | null = null;
@@ -37,6 +38,17 @@ async function swapText(node: HTMLElement, text: string) {
   }
 }
 
+/** As cores da capa pintam o brilho da pílula e a barra de progresso. Sem
+ *  capa (ou sem como lê-la), valem as cores padrão do CSS. */
+async function paintFromArt(src: string | null) {
+  const island = $("#island");
+  island.dataset.art = src ?? "";
+  const colors = src ? await artColors(src) : null;
+  if (island.dataset.art !== (src ?? "")) return; // A música mudou no meio.
+  island.style.setProperty("--art-a", colors?.[0] ?? null);
+  island.style.setProperty("--art-b", colors?.[1] ?? null);
+}
+
 function setArt(img: HTMLImageElement, src: string | null) {
   if (src) {
     if (img.getAttribute("src") !== src) img.src = src;
@@ -61,7 +73,7 @@ function renderProgress() {
   // Sem duração (alguns players não informam), uma barra parada no começo só
   // confundiria: some a barra e fica só o tempo corrido.
   $(".progress").hidden = !m?.duration;
-  $(".progress-bar").style.transform = `scaleX(${ratio})`;
+  $(".progress").style.setProperty("--p", String(ratio));
   $(".t-pos").textContent = formatDuration(pos);
   $(".t-dur").textContent = formatDuration(m?.duration);
 }
@@ -75,6 +87,9 @@ function render(m: MediaState) {
   $(".media-artist").textContent = m.available ? m.artist || m.album : "Abra um player de música";
   void swapText($(".pill-title"), m.available ? m.title : "");
   setArt($<HTMLImageElement>(".art"), m.art);
+  setArt($<HTMLImageElement>(".pill-art img"), m.art);
+  island.classList.toggle("has-art", !!m.art);
+  if ((island.dataset.art ?? "") !== (m.art ?? "")) void paintFromArt(m.art);
   $(".eq").hidden = !m.playing;
   $(".i-play").toggleAttribute("hidden", m.playing);
   $(".i-pause").toggleAttribute("hidden", !m.playing);
