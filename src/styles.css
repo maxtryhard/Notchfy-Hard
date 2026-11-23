@@ -1071,9 +1071,12 @@ svg.icon .fill {
   text-overflow: ellipsis;
 }
 
+/* Selecionável para copiar um código de erro. */
 .inbox-body {
   color: #c9ccd2;
   font-size: 11.5px;
+  -webkit-user-select: text;
+  user-select: text;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

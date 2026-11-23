@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
-import { $, el, errorText, logo, toast } from "./util";
+import { $, el, errorText, logo } from "./util";
 
 /** `icon` aponta um símbolo do index.html (`#icon-…`); sem ele, o selo mostra
  *  a inicial do app. */
@@ -130,7 +130,7 @@ async function toggle(input: HTMLInputElement) {
   } catch (e) {
     input.checked = false;
     enabled = false;
-    toast(errorText(e));
+    receive(status("Não foi possível ligar", errorText(e)));
   }
   renderInbox();
 }
@@ -176,7 +176,8 @@ function agent(n: AgentNotice): Notice | null {
   };
 }
 
-/** Aviso sobre a própria escuta (ligou, foi recusada, parou). */
+/** Aviso sobre a própria escuta (ligou, foi recusada, parou). Fica também na
+ *  caixa de avisos: o código de erro precisa poder ser lido depois. */
 const status = (title: string, body: string): Notice => ({ app: "Notify", title, body });
 
 export async function initNotices() {
@@ -193,11 +194,11 @@ export async function initNotices() {
   });
   await listen<BatteryAlert>("island-battery", (event) => enqueue(battery(event.payload)));
   await listen<{ title: string; body: string }>("island-notification-status", (event) =>
-    enqueue(status(event.payload.title, event.payload.body)),
+    receive(status(event.payload.title, event.payload.body)),
   );
   // Retoma a escuta se ela estava ligada; se o sistema recusar, avisa por que.
   enabled = await api.notificationsInit().catch((e) => {
-    enqueue(status("Notificações indisponíveis", errorText(e)));
+    receive(status("Notificações indisponíveis", errorText(e)));
     return false;
   });
   input.checked = enabled;
