@@ -194,6 +194,18 @@ mod imp {
             );
         }
         thread::spawn(move || {
+            // O objeto da central vale só na thread em que foi pego: usar o da
+            // thread que pediu o acesso dava 0x8001010E (RPC_E_WRONG_THREAD).
+            let listener = match UserNotificationListener::Current() {
+                Ok(listener) => listener,
+                Err(e) => {
+                    on_problem(format!(
+                        "Código {:#010x}: o Windows não entregou as notificações a este instalador.",
+                        e.code().0
+                    ));
+                    return;
+                }
+            };
             // As que já estavam na central não são novidade: só marca como vistas.
             let mut seen: Option<HashSet<u32>> = None;
             // Avisa uma vez por sequência de falhas, não a cada consulta.
